@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 17% 98%;
+    --foreground: 222 47% 11%;
+    --card: 210 17% 98%;
+    --card-foreground: 222 47% 11%;
+    --popover: 210 17% 98%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 217 89% 61%;
+    --primary-foreground: 210 17% 98%;
+    --secondary: 210 17% 91%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 17% 91%;
+    --muted-foreground: 222 47% 40%;
+    --accent: 231 48% 56%;
+    --accent-foreground: 210 17% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 17% 85%;
+    --input: 210 17% 85%;
+    --ring: 217 89% 61%;
+    --radius: 1.25rem;
+    --sidebar-background: 210 17% 95%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 217 89% 61%;
+    --sidebar-primary-foreground: 210 17% 98%;
+    --sidebar-accent: 210 17% 88%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 210 17% 80%;
+    --sidebar-ring: 217 89% 61%;
+  }
+ 
+  .dark {
+    --background: 222 47% 4%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 6%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 6%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 89% 61%;
+    --primary-foreground: 210 17% 98%;
+    --secondary: 222 47% 12%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 222 47% 12%;
+    --muted-foreground: 210 40% 60%;
+    --accent: 231 48% 56%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 47% 12%;
+    --input: 222 47% 12%;
+    --ring: 217 89% 70%;
+  }
+}
+ 
+@layer base {
+  * {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-background text-foreground antialiased min-h-screen;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .glass {
+    @apply bg-background/70 backdrop-blur-xl border border-white/10;
+  }
+  .glass-dark {
+    @apply bg-black/40 backdrop-blur-xl border border-white/5;
+  }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}

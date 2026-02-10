@@ -1,0 +1,156 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Profil Pengguna
+    match /users/{userId} {
+      allow get, list: if isAuthenticated();
+      allow write: if isOwner(userId) || isAdmin();
+      
+      match /aiMessages/{msgId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /favorites/{bookId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+      
+      match /notifications/{notifId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isAuthenticated(); // Admin needs write, others for interaction notifications
+      }
+      
+      match /followers/{followerId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+      
+      match /following/{followedId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // Buku & Bab
+    match /books/{bookId} {
+      allow get, list: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
+      
+      match /chapters/{chapterId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+      
+      match /comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+        
+        match /replies/{replyId} {
+          allow read: if isAuthenticated();
+          allow write: if isAuthenticated();
+        }
+        
+        match /likes/{userId} {
+          allow read: if isAuthenticated();
+          allow write: if isOwner(userId);
+        }
+      }
+    }
+
+    // Reels (Video Permanen)
+    match /reels/{reelId} {
+      allow get, list: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
+      
+      match /comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+        
+        match /replies/{replyId} {
+          allow read: if isAuthenticated();
+          allow write: if isAuthenticated();
+        }
+        
+        match /likes/{userId} {
+          allow read: if isAuthenticated();
+          allow write: if isOwner(userId);
+        }
+      }
+      
+      match /likes/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+      
+      match /views/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // Cerita (Story 24 Jam)
+    match /stories/{storyId} {
+      allow get, list: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
+      
+      match /comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      }
+      
+      match /likes/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+      
+      match /views/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // Pesan & Obrolan
+    match /chats/{chatId} {
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.participantUids);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid in resource.data.participantUids);
+      
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+    }
+    
+    // Permintaan Penulis
+    match /authorRequests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin() || isOwner(resource.data.userId);
+    }
+
+    // Global Catch-all (Should be at the end)
+    match /{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

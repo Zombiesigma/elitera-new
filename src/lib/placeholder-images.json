@@ -1,0 +1,70 @@
+{
+  "placeholderImages": [
+    {
+      "id": "user-avatar-1",
+      "description": "Avatar for Guntur Padilah",
+      "imageUrl": "https://images.unsplash.com/photo-1636377985931-898218afd306?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8bWFuJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzY5MTAzMjcxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man portrait"
+    },
+    {
+      "id": "user-avatar-2",
+      "description": "Avatar for Jane Doe",
+      "imageUrl": "https://images.unsplash.com/photo-1557053910-d9eadeed1c58?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHx3b21hbiUyMHBvcnRyYWl0fGVufDB8fHx8MTc2OTA5MjI1NXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman portrait"
+    },
+    {
+      "id": "user-avatar-3",
+      "description": "Avatar for Alex Ray",
+      "imageUrl": "https://images.unsplash.com/flagged/photo-1595514191830-3e96a518989b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8cGVyc29uJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzY5MDc3ODA4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "book-cover-1",
+      "description": "Book cover for The Midnight Library",
+      "imageUrl": "https://images.unsplash.com/photo-1711185900590-b118146e3988?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxmYW50YXN5JTIwYm9va3xlbnwwfHx8fDE3NjkwNzc4NTl8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "fantasy book"
+    },
+    {
+      "id": "book-cover-2",
+      "description": "Book cover for Atomic Habits",
+      "imageUrl": "https://images.unsplash.com/photo-1630416358012-ac8d5bcd19bd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxtaW5pbWFsaXN0JTIwZGVzaWdufGVufDB8fHx8MTc2OTE0Mjk1NXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "minimalist design"
+    },
+    {
+      "id": "book-cover-3",
+      "description": "Book cover for Project Hail Mary",
+      "imageUrl": "https://images.unsplash.com/photo-1628498188904-036f5e25e93e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxzcGFjZSUyMHN0YXJzfGVufDB8fHx8MTc2OTE1MTUwNXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "space stars"
+    },
+    {
+      "id": "book-cover-4",
+      "description": "Book cover for The Silent Patient",
+      "imageUrl": "https://images.unsplash.com/photo-1518995117115-90b02baaae6d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxteXN0ZXJ5JTIwbm92ZWx8ZW58MHx8fHwxNzY5MDYxNDE5fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "mystery novel"
+    },
+    {
+      "id": "book-cover-5",
+      "description": "Book cover for Dune",
+      "imageUrl": "https://images.unsplash.com/photo-1700374377059-d23a6a1244dd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxkZXNlcnQlMjBsYW5kc2NhcGV8ZW58MHx8fHwxNzY5MTA0MjkwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "desert landscape"
+    },
+    {
+      "id": "book-cover-6",
+      "description": "Book cover for Sapiens",
+      "imageUrl": "https://images.unsplash.com/photo-1662244461851-d939997f6dfb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxhbmNpZW50JTIwaGlzdG9yeXxlbnwwfHx8fDE3NjkxNTE1MDV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "ancient history"
+    },
+    {
+      "id": "book-cover-7",
+      "description": "Book cover for Digital Fortress",
+      "imageUrl": "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxjb21wdXRlciUyMGNvZGV8ZW58MHx8fHwxNzY5MTM2NzMwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "computer code"
+    },
+    {
+      "id": "book-cover-8",
+      "description": "Book cover for The Alchemist",
+      "imageUrl": "https://images.unsplash.com/photo-1559739837-554d1bb771e2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxqb3VybmV5JTIwc3Vuc2V0fGVufDB8fHx8MTc2OTE1MTUwNXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "journey sunset"
+    }
+  ]
+}
