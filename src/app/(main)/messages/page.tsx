@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -72,20 +71,34 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [viewportHeight, setViewportHeight] = useState('100%');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [onlineStatus, setOnlineStatus] = useState<{ [key: string]: boolean }>({});
 
-  // Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. Fetching Chat Threads
+  // Keyboard awareness logic
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleResize = () => {
+      if (window.visualViewport) {
+        setViewportHeight(`${window.visualViewport.height}px`);
+        scrollToBottom();
+      }
+    };
+
+    window.visualViewport.addEventListener('resize', handleResize);
+    return () => window.visualViewport?.removeEventListener('resize', handleResize);
+  }, []);
+
   const chatThreadsQuery = useMemo(() => (
     (firestore && currentUser)
       ? query(collection(firestore, 'chats'), where('participantUids', 'array-contains', currentUser.uid))
@@ -342,7 +355,7 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="h-[calc(100dvh-64px)] -mt-6 -mx-4 md:-mx-6 border-none overflow-hidden flex flex-col bg-background relative">
+    <div className="h-[calc(100dvh-64px)] md:h-[calc(100vh-64px)] -mt-6 -mx-4 md:-mx-6 border-none overflow-hidden flex flex-col bg-background relative" style={{ height: viewportHeight }}>
       <div className="grid grid-cols-12 flex-1 h-full overflow-hidden">
         
         {/* Sidebar: Chat List */}
@@ -357,7 +370,7 @@ export default function MessagesPage() {
                     <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20">
                         <MessageSquare className="h-5 w-5" />
                     </div>
-                    <h1 className="text-2xl font-headline font-black tracking-tight uppercase italic">Pesan <span className="text-primary underline decoration-primary/20"></span></h1>
+                    <h1 className="text-2xl font-headline font-black tracking-tight uppercase italic">Pesan</h1>
                 </div>
                 <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/5 text-primary">
                     <Plus className="h-5 w-5" />
@@ -584,8 +597,8 @@ export default function MessagesPage() {
               </div>
 
               {/* Input Area */}
-              <div className="p-4 md:p-6 border-t bg-background/95 backdrop-blur-md shrink-0 z-[60] pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-15px_40px_-15px_rgba(0,0,0,0.1)]">
-                  <div className="max-w-5xl mx-auto flex flex-col gap-3">
+              <div className="p-3 md:p-6 border-t bg-background/95 backdrop-blur-md shrink-0 z-[60] pb-2 md:pb-6 shadow-[0_-15px_40px_-15px_rgba(0,0,0,0.1)]">
+                  <div className="max-w-5xl mx-auto flex flex-col gap-2 md:gap-3">
                       {/* Replying Context Bar */}
                       <AnimatePresence>
                         {replyingTo && (
@@ -672,6 +685,7 @@ export default function MessagesPage() {
                                 <Textarea 
                                     ref={textareaRef}
                                     placeholder="Tuangkan inspirasi..." 
+                                    onFocus={() => setTimeout(() => scrollToBottom(), 300)}
                                     className="relative w-full resize-none rounded-[1.75rem] border-none bg-muted/40 px-6 py-4 pr-12 min-h-[50px] max-h-40 focus-visible:ring-primary/20 focus-visible:bg-background transition-all shadow-inner text-sm leading-relaxed font-medium"
                                     rows={1}
                                     value={newMessage}
@@ -693,7 +707,7 @@ export default function MessagesPage() {
                         </form>
                       )}
                   </div>
-                  <div className="mt-3 flex justify-center opacity-20 pointer-events-none select-none grayscale">
+                  <div className="mt-1.5 flex justify-center opacity-20 pointer-events-none select-none grayscale">
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-2 w-3" />
                         <p className="text-[7px] font-black uppercase tracking-[0.4em]">Elitera Messenger</p>
@@ -793,7 +807,6 @@ function MessageBubble({ msg, isSender, otherParticipant, onSwipe, onImageClick 
             initial={{ opacity: 0, y: 20, scale: 0.95 }} 
             animate={{ opacity: 1, y: 0, scale: 1 }} 
         >
-            {/* Reply Icon Indicator */}
             <motion.div 
                 style={{ opacity, scale }}
                 className="absolute left-[-40px] top-1/2 -translate-y-1/2 flex items-center justify-center h-10 w-10 bg-primary/10 rounded-full text-primary"
@@ -821,7 +834,6 @@ function MessageBubble({ msg, isSender, otherParticipant, onSwipe, onImageClick 
                             ? "bg-primary text-white rounded-br-none shadow-primary/20 ring-1 ring-white/10" 
                             : "bg-card border border-border/50 rounded-bl-none shadow-black/5"
                     )}>
-                        {/* Render Reply Metadata inside bubble */}
                         {msg.replyTo && (
                             <div className={cn(
                                 "mx-2 mt-2 p-2 px-3 rounded-2xl border-l-4 flex flex-col gap-0.5 opacity-80",
