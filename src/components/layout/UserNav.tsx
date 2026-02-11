@@ -20,8 +20,6 @@ import {
 import {
   Settings,
   LogOut,
-  BookUser,
-  Info,
   ChevronRight,
   Moon,
   Sun,
@@ -29,12 +27,10 @@ import {
   User as UserIcon,
   HelpCircle,
   Sparkles,
-  LayoutGrid,
-  Heart,
   MessageSquare,
   Bot,
+  Info
 } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,7 +47,6 @@ import { useRouter } from 'next/navigation';
 import { doc } from 'firebase/firestore';
 import type { User as AppUser } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 
 export function UserNav() {
@@ -62,18 +57,18 @@ export function UserNav() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isLogoutAlertOpen, setIsLogoutAlertOpen] = useState(false);
 
-  // Fix for pointer events sticking after sheet close
+  // Safety cleanup: Ensure body is interactive when overlays are closed
   useEffect(() => {
     if (!isSheetOpen && !isLogoutAlertOpen) {
-        const timer = setTimeout(() => {
-            document.body.style.pointerEvents = '';
-        }, 300);
-        return () => clearTimeout(timer);
+        if (typeof document !== 'undefined') {
+            document.body.style.pointerEvents = 'auto';
+            document.body.style.overflow = 'auto';
+        }
     }
   }, [isSheetOpen, isLogoutAlertOpen]);
 
   const userProfileRef = (firestore && user) ? doc(firestore, 'users', user.uid) : null;
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<AppUser>(userProfileRef);
+  const { data: userProfile } = useDoc<AppUser>(userProfileRef);
   
   const isAdmin = userProfile?.role?.toLowerCase() === 'admin';
 
@@ -83,15 +78,21 @@ export function UserNav() {
   };
 
   const handleSignOut = async () => {
+    // 1. Instantly close all UI layers
     setIsLogoutAlertOpen(false);
     setIsSheetOpen(false);
     
-    // Smooth delay for transitions
-    setTimeout(async () => {
-        await signOut();
-        document.body.style.pointerEvents = '';
-        router.push('/login');
-    }, 200);
+    // 2. Force interaction recovery BEFORE sign-out redirect
+    if (typeof document !== 'undefined') {
+        document.body.style.pointerEvents = 'auto';
+        document.body.style.overflow = 'auto';
+    }
+
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Sign out error:", error);
+    }
   };
   
   if (isLoading || !user) return null;
@@ -136,17 +137,18 @@ export function UserNav() {
         </SheetTrigger>
         <SheetContent 
             side="right" 
-            className="w-[85vw] max-w-sm flex flex-col p-0 border-l bg-background/95 backdrop-blur-2xl z-[150] shadow-2xl"
+            className="w-[85vw] max-w-sm flex flex-col p-0 border-l bg-background/95 backdrop-blur-2xl z-[140] shadow-2xl"
             onCloseAutoFocus={(e) => {
                 e.preventDefault();
-                document.body.style.pointerEvents = '';
+                if (typeof document !== 'undefined') {
+                    document.body.style.pointerEvents = 'auto';
+                }
             }}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Menu Navigasi Profil</SheetTitle>
           </SheetHeader>
 
-          {/* Header Profile Section */}
           <div className="p-6 pb-8 bg-gradient-to-b from-primary/10 via-primary/5 to-transparent border-b border-primary/5">
             <div className="flex flex-col items-center text-center space-y-4">
                 <div className="relative group">
@@ -171,7 +173,6 @@ export function UserNav() {
             </div>
           </div>
           
-          {/* Menu Body */}
           <div className="flex-grow overflow-y-auto custom-scrollbar">
             <nav className="flex flex-col gap-1.5 p-4">
               {isAdmin && (
@@ -186,7 +187,7 @@ export function UserNav() {
               
               <div className="space-y-1 mb-6">
                 <p className="px-4 py-2 text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/60">Akses Cepat</p>
-                <NavLink href={`/profile/${userProfile?.username?.toLowerCase()}`} icon={UserIcon} label="Profil Utama" description="Lihat jejak karyamu" />
+                <NavLink href={`/profile/${userProfile?.username?.toLowerCase() || ''}`} icon={UserIcon} label="Profil Utama" description="Lihat jejak karyamu" />
                 <NavLink href="/ai" icon={Bot} label="Elitera AI" description="Asisten kreatif puitis" />
                 <NavLink href="/messages" icon={MessageSquare} label="Kotak Pesan" description="Diskusi pribadi antar pujangga" />
                 <NavLink href="/notifications" icon={Sparkles} label="Kabar Terbaru" description="Aktivitas dan interaksi" />
@@ -246,19 +247,32 @@ export function UserNav() {
       </Sheet>
 
       <AlertDialog open={isLogoutAlertOpen} onOpenChange={setIsLogoutAlertOpen}>
-        <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8 max-w-[90vw] md:max-w-md">
+        <AlertDialogContent 
+            className="rounded-[2.5rem] border-none shadow-2xl p-8 max-w-[90vw] md:max-w-md z-[160]"
+            onCloseAutoFocus={(e) => {
+                e.preventDefault();
+                if (typeof document !== 'undefined') {
+                    document.body.style.pointerEvents = 'auto';
+                }
+            }}
+        >
           <AlertDialogHeader>
             <div className="mx-auto bg-destructive/10 p-4 rounded-[1.5rem] w-fit mb-4">
                 <LogOut className="h-8 w-8 text-destructive" />
             </div>
             <AlertDialogTitle className="font-headline text-2xl font-black text-center leading-tight">Beristirahat dari <br/><span className="text-primary italic">Inspirasi?</span></AlertDialogTitle>
             <AlertDialogDescription className="font-medium text-center text-muted-foreground leading-relaxed pt-2">
-              Anda akan keluar dari sesi Elitera. Tenang, setiap draf dan sejarah karyamu tetap tersimpan abadi di sini. Kami menanti kembalinya inspirasimu segera.
+              Anda akan keluar dari sesi Elitera. Tenang, setiap draf dan sejarah karyamu tetap tersimpan abadi di sini.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-8 flex flex-col sm:flex-row gap-2">
             <AlertDialogCancel className="rounded-full border-2 font-bold h-12 flex-1">Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSignOut} className="bg-destructive hover:bg-destructive/90 rounded-full font-black h-12 px-8 shadow-xl shadow-destructive/20 text-white flex-1">Ya, Keluar Sekarang</AlertDialogAction>
+            <AlertDialogAction 
+                onClick={handleSignOut} 
+                className="bg-destructive hover:bg-destructive/90 rounded-full font-black h-12 px-8 shadow-xl shadow-destructive/20 text-white flex-1"
+            >
+                Ya, Keluar Sekarang
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
