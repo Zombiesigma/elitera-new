@@ -21,12 +21,17 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Auth Guard: Redirect to login if not authenticated after loading is done
     if (!isLoading && !user) {
+      // Force unfreeze body on logout to prevent pointer-events issues
+      if (typeof document !== 'undefined') {
+        document.body.style.pointerEvents = 'auto';
+        document.body.style.overflow = 'auto';
+      }
       router.replace('/login');
     }
     
     // Smooth transition to app content once user is ready
     if (!isLoading && user) {
-        const timer = setTimeout(() => setShowChildren(true), 1200); // Allow splash to be seen
+        const timer = setTimeout(() => setShowChildren(true), 1200); 
         return () => clearTimeout(timer);
     }
   }, [user, isLoading, router]);
