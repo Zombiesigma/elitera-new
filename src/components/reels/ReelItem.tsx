@@ -19,9 +19,10 @@ interface ReelItemProps {
   reel: Reel;
   isMuted: boolean;
   onToggleMute: () => void;
+  isPausedByModal?: boolean;
 }
 
-export function ReelItem({ reel, isMuted, onToggleMute }: ReelItemProps) {
+export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false }: ReelItemProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const firestore = useFirestore();
@@ -46,25 +47,18 @@ export function ReelItem({ reel, isMuted, onToggleMute }: ReelItemProps) {
   const { data: likeDoc } = useDoc<ReelLike>(likeRef);
   const isLiked = !!likeDoc;
 
+  // Intersection Observer to track visibility
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
         setIsVisible(entry.isIntersecting);
-        if (videoRef.current) {
-          if (entry.isIntersecting) {
-            videoRef.current.play().catch(() => {});
-            if (!viewTracked.current && firestore && currentUser && currentUser.uid !== reel.authorId) {
-                const reelRef = doc(firestore, 'reels', reel.id);
-                const viewRef = doc(firestore, 'reels', reel.id, 'views', currentUser.uid);
-                const batch = writeBatch(firestore);
-                batch.update(reelRef, { viewCount: increment(1) });
-                batch.set(viewRef, { viewedAt: serverTimestamp() });
-                batch.commit().then(() => { viewTracked.current = true; });
-            }
-          } else {
-            videoRef.current.pause();
-            videoRef.current.currentTime = 0;
-          }
+        if (entry.isIntersecting && !viewTracked.current && firestore && currentUser && currentUser.uid !== reel.authorId) {
+            const reelRef = doc(firestore, 'reels', reel.id);
+            const viewRef = doc(firestore, 'reels', reel.id, 'views', currentUser.uid);
+            const batch = writeBatch(firestore);
+            batch.update(reelRef, { viewCount: increment(1) });
+            batch.set(viewRef, { viewedAt: serverTimestamp() });
+            batch.commit().then(() => { viewTracked.current = true; });
         }
       },
       { threshold: 0.8 }
@@ -74,6 +68,17 @@ export function ReelItem({ reel, isMuted, onToggleMute }: ReelItemProps) {
     if (currentRef) observer.observe(currentRef);
     return () => { if (currentRef) observer.unobserve(currentRef); };
   }, [firestore, currentUser, reel.id, reel.authorId]);
+
+  // Unified Play/Pause logic: Pause if not visible, paused by modal, or manually paused
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    if (isVisible && !isPausedByModal && !isPaused) {
+      videoRef.current.play().catch(() => {});
+    } else {
+      videoRef.current.pause();
+    }
+  }, [isVisible, isPausedByModal, isPaused]);
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -186,7 +191,6 @@ export function ReelItem({ reel, isMuted, onToggleMute }: ReelItemProps) {
     }
   };
 
-  // Normalisasi tautan profil: menggunakan authorUsername jika ada, atau slug dari authorName
   const profileHref = useMemo(() => {
       const slug = reel.authorName.toLowerCase().replace(/\s+/g, '');
       return `/profile/${slug}`;
@@ -242,7 +246,7 @@ export function ReelItem({ reel, isMuted, onToggleMute }: ReelItemProps) {
       </AnimatePresence>
 
       {/* Bottom Gradient Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80 pointer-events-none" />
 
       {/* Right Interaction Sidebar */}
       <div className="absolute right-4 bottom-28 flex flex-col items-center gap-5 z-[105]">
