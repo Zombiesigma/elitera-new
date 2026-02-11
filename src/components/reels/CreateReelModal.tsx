@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, X, Sparkles, Video, Film, Trash2, Heart, MessageSquare, Send as SendIcon, Music2 } from 'lucide-react';
+import { Loader2, X, Sparkles, Heart, MessageSquare, Send as SendIcon, Music2, SwitchCamera, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { User as AppUser } from '@/lib/types';
 import { uploadVideo } from '@/lib/uploader';
@@ -33,49 +33,141 @@ interface CreateReelModalProps {
   currentUserProfile: AppUser | null;
 }
 
+type CreatorMode = 'camera' | 'preview';
+
 export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateReelModalProps) {
   const firestore = useFirestore();
   const { user: currentUser } = useUser();
   const { toast } = useToast();
   
+  const [mode, setMode] = useState<CreatorMode>('camera');
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoFile, setMediaFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  // Camera & Recording States
+  const [isRecording, setIsRecording] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof reelSchema>>({
     resolver: zodResolver(reelSchema),
     defaultValues: { caption: "" },
   });
 
+  const stopStream = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const startCamera = async () => {
+    stopStream();
+    setIsCameraReady(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+        setIsCameraReady(true);
+      }
+    } catch (err) {
+      console.error("Camera access denied:", err);
+      toast({
+        variant: 'destructive',
+        title: 'Kamera Gagal',
+        description: 'Harap berikan izin akses kamera dan mikrofon.',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && mode === 'camera') {
+      startCamera();
+    } else {
+      stopStream();
+    }
+    return () => stopStream();
+  }, [isOpen, mode, facingMode]);
+
+  const toggleCamera = () => {
+    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+  };
+
+  const startRecording = () => {
+    if (!streamRef.current) return;
+    
+    chunksRef.current = [];
+    const recorder = new MediaRecorder(streamRef.current);
+    mediaRecorderRef.current = recorder;
+    
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+    
+    recorder.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
+      const file = new File([blob], `reel-${Date.now()}.mp4`, { type: 'video/mp4' });
+      setVideoUrl(url);
+      setMediaFile(file);
+      setMode('preview');
+    };
+    
+    recorder.start();
+    setIsRecording(true);
+    setRecordingTime(0);
+    timerRef.current = setInterval(() => {
+      setRecordingTime(prev => prev + 1);
+    }, 1000);
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 20 * 1024 * 1024) {
+        toast({ variant: 'destructive', title: 'Video Terlalu Besar', description: 'Maksimal 20MB.' });
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      setVideoUrl(url);
+      setMediaFile(file);
+      setMode('preview');
+    }
+  };
+
   const resetState = () => {
     setVideoUrl(null);
-    setVideoFile(null);
+    setMediaFile(null);
     setIsSubmitting(false);
+    setIsRecording(false);
+    setMode('camera');
     form.reset();
   };
 
   useEffect(() => {
     if (!isOpen) resetState();
   }, [isOpen]);
-
-  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 20 * 1024 * 1024) {
-        toast({ 
-          variant: 'destructive', 
-          title: 'Video Terlalu Besar', 
-          description: 'Maksimal ukuran video adalah 20MB untuk menjaga kualitas akses.' 
-        });
-        return;
-      }
-      const url = URL.createObjectURL(file);
-      setVideoUrl(url);
-      setVideoFile(file);
-    }
-  };
 
   async function onSubmit(values: z.infer<typeof reelSchema>) {
     if (!firestore || !currentUser || !currentUserProfile || !videoFile) return;
@@ -105,7 +197,6 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
         description: "Karya video Anda kini dapat dinikmati oleh seluruh komunitas Elitera." 
       });
     } catch (error: any) {
-      console.error("[Reel Upload Error]", error);
       toast({ 
         variant: 'destructive', 
         title: 'Gagal Menerbitkan', 
@@ -121,12 +212,12 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
       <DialogContent 
-        className="max-w-none w-screen h-screen p-0 border-0 m-0 bg-black overflow-hidden flex flex-col rounded-none z-[200] focus:outline-none"
+        className="max-w-none w-screen h-[100dvh] p-0 border-0 m-0 bg-black overflow-hidden flex flex-col rounded-none z-[200] focus:outline-none"
         onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = ''; }}
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Penyunting Reel</DialogTitle>
-          <DialogDescription>Tambahkan caption dan lihat pratinjau live karya Anda.</DialogDescription>
+          <DialogDescription>Rekam atau pilih video, tambahkan narasi, dan terbitkan.</DialogDescription>
         </DialogHeader>
 
         {/* Floating Top Nav */}
@@ -135,14 +226,14 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
             variant="ghost" 
             size="icon" 
             className="text-white hover:bg-white/10 rounded-full h-12 w-12 transition-all" 
-            onClick={onClose} 
+            onClick={mode === 'preview' ? () => setMode('camera') : onClose} 
             disabled={isSubmitting}
           >
-            <X className="h-6 w-6" />
+            {mode === 'preview' ? <X className="h-6 w-6" /> : <X className="h-6 w-6" />}
           </Button>
           
           <div className="flex items-center gap-3">
-             {videoUrl && (
+             {mode === 'preview' && videoUrl && (
                 <Button 
                     className="bg-primary text-white hover:bg-primary/90 rounded-full px-8 h-12 font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl transition-all active:scale-95 disabled:opacity-50" 
                     onClick={form.handleSubmit(onSubmit)} 
@@ -158,38 +249,86 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
           </div>
         </div>
 
-        <div className="flex-1 relative overflow-hidden flex flex-col items-center justify-center">
+        <div className="flex-1 relative overflow-hidden flex flex-col">
             <AnimatePresence mode="wait">
-                {!videoUrl ? (
+                {mode === 'camera' && (
                     <motion.div 
-                        key="choice"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.1 }}
-                        className="flex flex-col items-center gap-8 px-8"
-                    >
-                        <div className="p-10 rounded-[3.5rem] bg-white/5 border border-white/10 shadow-2xl relative">
-                            <div className="absolute inset-0 bg-primary/10 blur-3xl rounded-full animate-pulse" />
-                            <Film className="h-20 w-20 text-primary relative z-10" />
-                        </div>
-                        <div className="text-center space-y-3 mb-4">
-                            <h2 className="text-white text-4xl font-headline font-black tracking-tight uppercase">Pilih <span className="text-primary italic">Karya.</span></h2>
-                            <p className="text-white/40 text-sm font-medium max-w-xs mx-auto">Bagikan proses kreatif atau hasil akhir rekaman Anda di panggung Reels.</p>
-                        </div>
-                        <Button 
-                            size="lg" 
-                            className="h-16 rounded-2xl px-10 font-black text-lg gap-4 shadow-xl shadow-primary/20 transition-all active:scale-95"
-                            onClick={() => videoInputRef.current?.click()}
-                        >
-                            <Video className="h-6 w-6" /> Pilih Video
-                        </Button>
-                        <input type="file" ref={videoInputRef} className="hidden" accept="video/*" onChange={handleVideoSelect} />
-                    </motion.div>
-                ) : (
-                    <motion.div 
-                        key="preview"
+                        key="camera"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="flex-1 bg-black relative flex flex-col"
+                    >
+                        {!isCameraReady && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-20 bg-black">
+                            <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                            <p className="text-white/40 text-[10px] font-black uppercase tracking-widest">Sinkronisasi Lensa...</p>
+                          </div>
+                        )}
+                        
+                        <video 
+                          ref={videoRef} 
+                          autoPlay 
+                          playsInline 
+                          muted 
+                          className={cn(
+                            "w-full h-full object-cover transition-transform duration-500",
+                            facingMode === 'user' ? "-scale-x-100" : "scale-x-100"
+                          )}
+                        />
+                        
+                        {/* Camera Controls Overlay */}
+                        <div className="absolute inset-0 p-6 flex flex-col justify-end pb-[max(2rem,env(safe-area-inset-bottom))] pointer-events-none">
+                            <div className="flex items-center justify-between pointer-events-auto">
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="h-14 w-14 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 flex flex-col items-center justify-center text-white active:scale-90 transition-all"
+                                >
+                                    <ImageIcon className="h-6 w-6 mb-1" />
+                                    <span className="text-[7px] font-black uppercase">Galeri</span>
+                                </button>
+                                <input type="file" ref={fileInputRef} className="hidden" accept="video/*" onChange={handleFileSelect} />
+
+                                <div className="relative">
+                                    <button 
+                                        onClick={isRecording ? stopRecording : startRecording}
+                                        disabled={!isCameraReady}
+                                        className={cn(
+                                            "h-20 w-24 rounded-[2rem] border-4 flex items-center justify-center transition-all duration-500",
+                                            isRecording ? "border-rose-500 bg-rose-500/20" : "border-white bg-white/10"
+                                        )}
+                                    >
+                                        <div className={cn(
+                                            "transition-all duration-500",
+                                            isRecording ? "h-8 w-8 rounded-lg bg-rose-500" : "h-14 w-14 rounded-full bg-white"
+                                        )} />
+                                    </button>
+                                    {isRecording && (
+                                        <div className="absolute -top-12 left-1/2 -translate-x-1/2">
+                                            <div className="bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-black font-mono">
+                                                {Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, '0')}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button 
+                                    onClick={toggleCamera}
+                                    className="h-14 w-14 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 flex flex-col items-center justify-center text-white active:scale-90 transition-all"
+                                >
+                                    <SwitchCamera className="h-6 w-6 mb-1" />
+                                    <span className="text-[7px] font-black uppercase">Putar</span>
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+
+                {mode === 'preview' && videoUrl && (
+                    <motion.div 
+                        key="preview"
+                        initial={{ opacity: 0, scale: 1.05 }}
+                        animate={{ opacity: 1, scale: 1 }}
                         className="w-full h-full flex flex-col md:flex-row bg-black"
                     >
                         {/* LEFT: LIVE PREVIEW SIMULATION */}
@@ -207,7 +346,6 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
                                 {/* UI OVERLAY SIMULATION */}
                                 <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80 pointer-events-none" />
                                 
-                                {/* Right Sidebar Dummy */}
                                 <div className="absolute right-4 bottom-32 flex flex-col items-center gap-6 z-10 opacity-60">
                                     <div className="flex flex-col items-center gap-1.5">
                                         <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white"><Heart className="h-6 w-6" /></div>
@@ -220,7 +358,6 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
                                     <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white"><SendIcon className="h-5 w-5" /></div>
                                 </div>
 
-                                {/* Bottom Info Dummy */}
                                 <div className="absolute bottom-0 left-0 right-0 p-6 pb-10 space-y-4 z-10">
                                     <div className="flex items-center gap-3">
                                         <Avatar className="h-10 w-10 border-2 border-white/30">
@@ -238,7 +375,6 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
                                     </div>
                                 </div>
 
-                                {/* Live Badge */}
                                 <div className="absolute top-6 left-6 z-20">
                                     <div className="bg-primary/80 backdrop-blur-md text-white px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
                                         <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
@@ -247,9 +383,8 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
                                 </div>
                             </div>
                             
-                            {/* Re-select Button */}
                             <button 
-                                onClick={() => setVideoUrl(null)}
+                                onClick={() => setMode('camera')}
                                 className="absolute bottom-10 left-10 bg-rose-500/20 hover:bg-rose-500 backdrop-blur-xl text-white p-4 rounded-2xl shadow-xl transition-all border border-rose-500/30 group z-[220]"
                                 disabled={isSubmitting}
                             >
@@ -258,7 +393,7 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
                         </div>
                         
                         {/* RIGHT: EDITOR PANEL */}
-                        <div className="w-full md:w-[400px] lg:w-[450px] p-8 md:p-12 bg-zinc-900 border-l border-white/5 flex flex-col gap-10 pt-24 md:pt-32 shrink-0 overflow-y-auto custom-scrollbar">
+                        <div className="w-full md:w-[400px] lg:w-[450px] p-8 md:p-12 bg-zinc-900 border-l border-white/5 flex flex-col gap-10 pt-24 md:pt-32 shrink-0 overflow-y-auto no-scrollbar">
                             <div className="space-y-2">
                                 <h3 className="text-white text-2xl font-headline font-black tracking-tight">Sempurnakan <span className="text-primary italic">Narasimu.</span></h3>
                                 <p className="text-white/40 text-sm font-medium">Caption ini akan menjadi jiwa dari video Anda.</p>
@@ -321,18 +456,6 @@ export function CreateReelModal({ isOpen, onClose, currentUserProfile }: CreateR
             </AnimatePresence>
         </div>
       </DialogContent>
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-        }
-      `}</style>
     </Dialog>
   );
 }
