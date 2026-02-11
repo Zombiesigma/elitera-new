@@ -33,6 +33,9 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
   const [commentText, setCommentText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Jalur dasar untuk komentar tingkat atas
+  const topLevelCommentsPath = `reels/${reelId}/comments`;
+
   useEffect(() => {
     if (!isOpen) {
         setCommentText("");
@@ -44,8 +47,8 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
   }, [isOpen]);
 
   const commentsQuery = useMemo(() => (
-    firestore ? query(collection(firestore, 'reels', reelId, 'comments'), orderBy('createdAt', 'desc')) : null
-  ), [firestore, reelId]);
+    firestore ? query(collection(firestore, topLevelCommentsPath), orderBy('createdAt', 'desc')) : null
+  ), [firestore, topLevelCommentsPath]);
 
   const { data: comments, isLoading } = useCollection<ReelComment>(commentsQuery);
 
@@ -56,7 +59,7 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
     setIsSubmitting(true);
     try {
       const batch = writeBatch(firestore);
-      const commentsCol = collection(firestore, 'reels', reelId, 'comments');
+      const commentsCol = collection(firestore, topLevelCommentsPath);
       const reelRef = doc(firestore, 'reels', reelId);
 
       const newComment = {
@@ -74,6 +77,7 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
 
       await batch.commit();
 
+      // Kirim Notifikasi ke Pemilik Reel
       if (currentUser.uid !== reelAuthorId) {
           const authorDoc = await getDoc(doc(firestore, 'users', reelAuthorId));
           if (authorDoc.exists()) {
@@ -156,17 +160,23 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
                     <p className="text-sm max-w-[240px] mx-auto mt-2 leading-relaxed font-medium">Jadilah yang pertama memberikan apresiasi puitis pada video ini.</p>
                 </motion.div>
             ) : (
-                <div className="space-y-10 pb-24">
+                <div className="space-y-8 pb-24">
                 {comments.map((comment) => (
-                    <ReelCommentItem key={comment.id} reelId={reelId} comment={comment} />
+                    <ReelCommentItem 
+                        key={comment.id} 
+                        reelId={reelId} 
+                        comment={comment} 
+                        parentPath={topLevelCommentsPath}
+                        depth={0}
+                    />
                 ))}
                 </div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Floating Input Area */}
-        <div className="p-6 pb-10 border-t bg-background/95 backdrop-blur-xl relative z-10">
+        {/* Area Input Mengambang */}
+        <div className="p-6 pb-10 border-t bg-background/95 backdrop-blur-xl relative z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
             <form onSubmit={handleSendComment} className="flex items-center gap-3 relative max-w-4xl mx-auto group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-accent/10 to-primary/20 rounded-[1.5rem] blur opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
                 <Input 
