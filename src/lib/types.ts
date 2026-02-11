@@ -93,6 +93,9 @@ export type Chat = {
     text: string;
     timestamp: Timestamp;
     senderId: string;
+    type?: string;
+    messageId?: string;
+    status?: 'active' | 'ended';
   };
   unreadCounts?: { [key: string]: number };
 };
@@ -137,8 +140,16 @@ export type ReelShareMessage = {
   };
 };
 
+export type VideoCallMessage = {
+  id: string;
+  type: 'video_call';
+  roomUrl: string;
+  callerName: string;
+  status: 'active' | 'ended';
+};
+
 export type ChatMessage = (
-  TextMessage | ImageMessage | VoiceNoteMessage | BookShareMessage | ReelShareMessage
+  TextMessage | ImageMessage | VoiceNoteMessage | BookShareMessage | ReelShareMessage | VideoCallMessage
 ) & {
   id: string;
   senderId: string;
