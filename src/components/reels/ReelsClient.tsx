@@ -83,6 +83,7 @@ export function ReelsClient() {
                 reel={reel} 
                 isMuted={isMuted} 
                 onToggleMute={() => {}}
+                isPausedByModal={isCreateModalOpen}
             />
             ))
         ) : (
