@@ -1,8 +1,6 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
 import { doc, collection, serverTimestamp, query, orderBy, increment, writeBatch } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,9 +19,11 @@ import remarkGfm from 'remark-gfm';
 interface ReelCommentItemProps {
     reelId: string;
     comment: ReelComment;
+    parentPath: string; // Jalur koleksi tempat komentar ini berada
+    depth?: number;     // Tingkat kedalaman untuk indentasi UI
 }
 
-export function ReelCommentItem({ reelId, comment }: ReelCommentItemProps) {
+export function ReelCommentItem({ reelId, comment, parentPath, depth = 0 }: ReelCommentItemProps) {
     const { user: currentUser } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -33,10 +33,15 @@ export function ReelCommentItem({ reelId, comment }: ReelCommentItemProps) {
     const [isSubmittingReply, setIsSubmittingReply] = useState(false);
     const [isLiking, setIsLiking] = useState(false);
 
-    // Like logic
+    // Jalur untuk balasan dari komentar ini
+    const currentCommentRefPath = `${parentPath}/${comment.id}`;
+    const repliesPath = `${currentCommentRefPath}/replies`;
+
+    // Logika Like
     const likeRef = useMemo(() => (
-        (firestore && currentUser) ? doc(firestore, 'reels', reelId, 'comments', comment.id, 'likes', currentUser.uid) : null
-    ), [firestore, currentUser, reelId, comment.id]);
+        (firestore && currentUser) ? doc(firestore, `${currentCommentRefPath}/likes`, currentUser.uid) : null
+    ), [firestore, currentUser, currentCommentRefPath]);
+    
     const { data: likeDoc } = useDoc<ReelCommentLike>(likeRef);
     const isLiked = !!likeDoc;
     
@@ -46,7 +51,7 @@ export function ReelCommentItem({ reelId, comment }: ReelCommentItemProps) {
             return;
         }
         setIsLiking(true);
-        const commentRef = doc(firestore, 'reels', reelId, 'comments', comment.id);
+        const commentRef = doc(firestore, currentCommentRefPath);
         const batch = writeBatch(firestore);
 
         try {
@@ -59,25 +64,26 @@ export function ReelCommentItem({ reelId, comment }: ReelCommentItemProps) {
             }
             await batch.commit();
         } catch (error) {
-            console.error("Error toggling reel comment like:", error);
+            console.error("Error toggling like:", error);
         } finally {
             setIsLiking(false);
         }
     };
 
-    // Replies logic
+    // Ambil Balasan (Rekursif)
     const repliesQuery = useMemo(() => (
-        firestore ? query(collection(firestore, 'reels', reelId, 'comments', comment.id, 'replies'), orderBy('createdAt', 'asc')) : null
-    ), [firestore, reelId, comment.id]);
-    const { data: replies } = useCollection<ReelComment>(repliesQuery);
+        firestore ? query(collection(firestore, repliesPath), orderBy('createdAt', 'asc')) : null
+    ), [firestore, repliesPath]);
+    
+    const { data: replies, isLoading: areRepliesLoading } = useCollection<ReelComment>(repliesQuery);
 
     const handleReplySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!replyText.trim() || !currentUser || !firestore) return;
 
         setIsSubmittingReply(true);
-        const commentRef = doc(firestore, 'reels', reelId, 'comments', comment.id);
-        const repliesCol = collection(commentRef, 'replies');
+        const commentRef = doc(firestore, currentCommentRefPath);
+        const repliesCol = collection(firestore, repliesPath);
         
         const replyData = {
             text: replyText.trim(),
@@ -99,67 +105,71 @@ export function ReelCommentItem({ reelId, comment }: ReelCommentItemProps) {
             setShowReplyInput(false);
             toast({ title: "Balasan Terkirim" });
         } catch (error) {
-            console.error("Error submitting reel reply:", error);
+            console.error("Error submitting reply:", error);
             toast({ variant: 'destructive', title: "Gagal Mengirim" });
         } finally {
             setIsSubmittingReply(false);
         }
     };
 
+    // Batasi indentasi agar tidak terlalu menjorok di layar kecil
+    const maxDepth = 3;
+    const currentDepth = depth > maxDepth ? maxDepth : depth;
+
     return (
         <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col"
+            className={cn("flex flex-col", depth > 0 && "mt-4")}
         >
-            <div className="flex items-start gap-4">
-                <Avatar className="h-10 w-10 border-2 border-background shrink-0 shadow-sm">
+            <div className="flex items-start gap-3 md:gap-4">
+                <Avatar className="h-8 w-8 md:h-10 md:w-10 border-2 border-background shrink-0 shadow-sm">
                     <AvatarImage src={comment.userAvatarUrl} className="object-cover" />
-                    <AvatarFallback className="bg-primary/5 text-primary font-black">
+                    <AvatarFallback className="bg-primary/5 text-primary font-black text-xs">
                         {comment.userName?.charAt(0) || 'U'}
                     </AvatarFallback>
                 </Avatar>
                 
                 <div className="flex-1 min-w-0 space-y-1.5">
-                    <div className="bg-white/50 dark:bg-zinc-900/50 p-4 rounded-2xl rounded-tl-none border border-white/10 shadow-sm group hover:shadow-md transition-all">
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                            <p className="font-black text-sm truncate text-foreground/90">{comment.userName}</p>
-                            <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">
+                    <div className="bg-white/50 dark:bg-zinc-900/50 p-3 md:p-4 rounded-2xl rounded-tl-none border border-white/10 shadow-sm group hover:shadow-md transition-all">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                            <p className="font-black text-xs md:text-sm truncate text-foreground/90">{comment.userName}</p>
+                            <span className="text-[8px] md:text-[9px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">
                                 {comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { locale: id, addSuffix: true }) : 'Baru saja'}
                             </span>
                         </div>
-                        <div className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-blockquote:border-l-2 prose-blockquote:pl-3 prose-p:m-0 max-w-none text-foreground/80 font-medium">
+                        <div className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-p:m-0 max-w-none text-foreground/80 font-medium text-[13px] md:text-sm">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {comment.text}
                             </ReactMarkdown>
                         </div>
                     </div>
                     
-                    <div className="flex items-center gap-4 pl-2">
+                    <div className="flex items-center gap-4 pl-1">
                         <button 
                             onClick={handleToggleLike}
                             disabled={isLiking}
                             className={cn(
-                                "flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-all",
+                                "flex items-center gap-1 text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all",
                                 isLiked ? "text-rose-500" : "text-muted-foreground hover:text-primary"
                             )}
                         >
-                            <Heart className={cn("h-3.5 w-3.5", isLiked && "fill-current")} />
+                            <Heart className={cn("h-3 w-3 md:h-3.5 md:w-3.5", isLiked && "fill-current")} />
                             <span>{comment.likeCount || 0}</span>
                         </button>
                         
                         <button 
                             onClick={() => setShowReplyInput(!showReplyInput)}
-                            className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all"
+                            className="flex items-center gap-1 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all"
                         >
-                            <MessageSquare className="h-3.5 w-3.5" />
+                            <MessageSquare className="h-3 w-3 md:h-3.5 md:w-3.5" />
                             <span>{comment.replyCount || 0} Balas</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Reply Input */}
+            {/* Input Balasan */}
             <AnimatePresence>
                 {showReplyInput && currentUser && (
                     <motion.div 
@@ -168,13 +178,13 @@ export function ReelCommentItem({ reelId, comment }: ReelCommentItemProps) {
                         exit={{ opacity: 0, height: 0 }}
                         className="overflow-hidden"
                     >
-                        <form onSubmit={handleReplySubmit} className="flex items-start gap-3 pl-14 pt-4 pr-4">
-                            <div className="shrink-0 mt-3"><CornerDownRight className="h-4 w-4 text-muted-foreground/40" /></div>
+                        <form onSubmit={handleReplySubmit} className="flex items-start gap-2 pl-10 md:pl-14 pt-3 pr-2">
+                            <div className="shrink-0 mt-3"><CornerDownRight className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground/40" /></div>
                             <div className="relative flex-1 group">
-                                <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-accent/20 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition-opacity" />
+                                <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-accent/20 rounded-xl blur opacity-0 group-focus-within:opacity-100 transition-opacity" />
                                 <Textarea 
-                                    placeholder={`Balas ulasan ${comment.userName}...`}
-                                    className="relative w-full min-h-[80px] bg-muted/30 border-none shadow-none focus-visible:ring-primary/20 text-sm rounded-xl py-3 px-4 resize-none pr-12"
+                                    placeholder={`Balas ${comment.userName}...`}
+                                    className="relative w-full min-h-[60px] md:min-h-[80px] bg-muted/30 border-none shadow-none focus-visible:ring-primary/20 text-xs md:text-sm rounded-xl py-2 px-3 md:py-3 md:px-4 resize-none pr-10"
                                     value={replyText}
                                     onChange={(e) => setReplyText(e.target.value)}
                                     disabled={isSubmittingReply}
@@ -182,10 +192,10 @@ export function ReelCommentItem({ reelId, comment }: ReelCommentItemProps) {
                                 <Button 
                                     type="submit"
                                     size="icon" 
-                                    className="absolute bottom-2 right-2 h-8 w-8 rounded-lg shadow-lg" 
+                                    className="absolute bottom-1.5 right-1.5 h-7 w-7 md:h-8 md:w-8 rounded-lg shadow-lg" 
                                     disabled={isSubmittingReply || !replyText.trim()}
                                 >
-                                    {isSubmittingReply ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4"/>}
+                                    {isSubmittingReply ? <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin"/> : <Send className="h-3 w-3 md:h-4 md:w-4"/>}
                                 </Button>
                             </div>
                         </form>
@@ -193,38 +203,20 @@ export function ReelCommentItem({ reelId, comment }: ReelCommentItemProps) {
                 )}
             </AnimatePresence>
             
-            {/* Nested Replies List */}
+            {/* Daftar Balasan Rekursif */}
             {replies && replies.length > 0 && (
-                <div className="pl-14 pt-6 space-y-6 relative border-l-2 border-border/20 ml-5 mt-2">
+                <div className={cn(
+                    "pl-6 md:pl-10 mt-2 relative",
+                    depth < maxDepth && "border-l-2 border-border/20 ml-4 md:ml-5"
+                )}>
                     {replies.map(reply => (
-                        <motion.div 
+                        <ReelCommentItem 
                             key={reply.id} 
-                            initial={{ opacity: 0, x: -5 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="flex items-start gap-3"
-                        >
-                            <Avatar className="h-8 w-8 border-2 border-background shrink-0 shadow-sm">
-                                <AvatarImage src={reply.userAvatarUrl} className="object-cover" />
-                                <AvatarFallback className="bg-primary/5 text-primary text-[10px] font-black">
-                                    {reply.userName?.charAt(0) || 'U'}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                                <div className="bg-muted/30 p-3.5 rounded-2xl rounded-tl-none border border-border/10">
-                                    <div className="flex items-center justify-between gap-2 mb-1">
-                                        <p className="font-black text-xs truncate text-foreground/80">{reply.userName}</p>
-                                        <span className="text-[8px] uppercase font-bold tracking-widest text-muted-foreground opacity-50">
-                                            {reply.createdAt ? formatDistanceToNow(reply.createdAt.toDate(), { locale: id, addSuffix: true }) : 'Baru saja'}
-                                        </span>
-                                    </div>
-                                    <div className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-p:m-0 max-w-none text-foreground/70">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                            {reply.text}
-                                        </ReactMarkdown>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
+                            reelId={reelId} 
+                            comment={reply} 
+                            parentPath={repliesPath}
+                            depth={depth + 1}
+                        />
                     ))}
                 </div>
             )}
