@@ -4,7 +4,7 @@ import { useMemo, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useFirestore, useCollection, useUser } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { 
   Card, 
@@ -32,10 +32,10 @@ import {
   Users, 
   ShieldCheck, 
   Filter, 
-  MoreHorizontal, 
   UserCircle,
   ExternalLink,
-  Zap
+  Zap,
+  ChevronRight
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
