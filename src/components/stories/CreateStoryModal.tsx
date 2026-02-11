@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, X, Palette, Camera, Image as ImageIcon, Type, ArrowLeft, Sparkles, Send, Video, Film } from 'lucide-react';
+import { Loader2, X, Palette, Camera, Image as ImageIcon, Type, ArrowLeft, Sparkles, Send, Video, Film, SwitchCamera } from 'lucide-react';
 import type { User as AppUser } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { uploadFile, uploadVideo } from '@/lib/uploader';
@@ -58,6 +58,7 @@ export function CreateStoryModal({ isOpen, onClose, currentUserProfile }: Create
   const [capturedMedia, setCapturedMedia] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [isCameraLoading, setIsCameraLoading] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -86,6 +87,7 @@ export function CreateStoryModal({ isOpen, onClose, currentUserProfile }: Create
     setCapturedMedia(null);
     setMediaFile(null);
     setIsCameraLoading(false);
+    setFacingMode('user');
     form.reset();
   };
 
@@ -93,7 +95,9 @@ export function CreateStoryModal({ isOpen, onClose, currentUserProfile }: Create
     if (!isOpen) {
       resetState();
       const timer = setTimeout(() => { 
-        document.body.style.pointerEvents = ''; 
+        if (typeof document !== 'undefined') {
+            document.body.style.pointerEvents = 'auto';
+        }
       }, 300);
       return () => clearTimeout(timer);
     }
@@ -104,9 +108,10 @@ export function CreateStoryModal({ isOpen, onClose, currentUserProfile }: Create
     const initCamera = async () => {
       if (mode === 'camera') {
         setIsCameraLoading(true);
+        stopCamera();
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+            video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
             audio: false 
           });
           
@@ -134,9 +139,12 @@ export function CreateStoryModal({ isOpen, onClose, currentUserProfile }: Create
     initCamera();
     return () => {
       active = false;
-      if (mode !== 'camera') stopCamera();
     };
-  }, [mode, toast]);
+  }, [mode, facingMode, toast]);
+
+  const toggleCamera = () => {
+    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+  };
 
   const takePhoto = () => {
     if (videoRef.current) {
@@ -179,7 +187,7 @@ export function CreateStoryModal({ isOpen, onClose, currentUserProfile }: Create
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 20 * 1024 * 1024) {
-        toast({ variant: 'destructive', title: 'Video Terlalu Besar', description: 'Maksimal durasi singkat atau ukuran 20MB.' });
+        toast({ variant: 'destructive', title: 'Video Terlalu Besar', description: 'Maksimal 20MB.' });
         return;
       }
       const url = URL.createObjectURL(file);
@@ -236,7 +244,7 @@ export function CreateStoryModal({ isOpen, onClose, currentUserProfile }: Create
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent 
         className="max-w-none w-screen h-[100dvh] p-0 border-0 m-0 bg-black overflow-hidden flex flex-col rounded-none z-[200] focus:outline-none"
-        onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = ''; }}
+        onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = 'auto'; }}
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Buat Cerita Baru</DialogTitle>
@@ -256,6 +264,15 @@ export function CreateStoryModal({ isOpen, onClose, currentUserProfile }: Create
                     className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white active:scale-90 transition-transform"
                 >
                     <Palette className="h-6 w-6" />
+                </button>
+             )}
+             
+             {mode === 'camera' && (
+                <button 
+                    onClick={toggleCamera}
+                    className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white active:scale-90 transition-transform"
+                >
+                    <SwitchCamera className="h-6 w-6" />
                 </button>
              )}
              
@@ -383,7 +400,16 @@ export function CreateStoryModal({ isOpen, onClose, currentUserProfile }: Create
                             <p className="text-white/40 text-[10px] font-black uppercase tracking-widest">Sinkronisasi Lensa...</p>
                           </div>
                         )}
-                        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                        <video 
+                          ref={videoRef} 
+                          autoPlay 
+                          playsInline 
+                          muted 
+                          className={cn(
+                            "w-full h-full object-cover transition-transform duration-500",
+                            facingMode === 'user' ? "-scale-x-100" : "scale-x-100"
+                          )}
+                        />
                         
                         <div className="absolute bottom-16 left-0 right-0 flex items-center justify-center pb-[max(0rem,env(safe-area-inset-bottom))] z-30">
                             <button 
