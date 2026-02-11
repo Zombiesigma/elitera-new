@@ -143,9 +143,19 @@ export function StoryViewer({ stories, initialAuthorId, isOpen, onClose }: Story
     }
   }, [currentStory, currentUser, firestore, isOpen]);
 
+  // Video Playback Logic
   useEffect(() => {
     if (currentStory?.type === 'video' && videoRef.current) {
         const video = videoRef.current;
+        
+        // Load and Play
+        video.load();
+        if (!isPaused && !showViews && !showComments) {
+            video.play().catch(err => console.log("Playback interaction required:", err));
+        } else {
+            video.pause();
+        }
+
         const handleEnded = () => {
             if (!isPaused && !showViews && !showComments) {
                 nextStory();
@@ -329,7 +339,7 @@ export function StoryViewer({ stories, initialAuthorId, isOpen, onClose }: Story
                                         className="w-full h-full object-cover" 
                                         autoPlay 
                                         playsInline 
-                                        muted={true}
+                                        muted={false}
                                     />
                                 ) : (
                                     <img src={currentStory.mediaUrl} alt="Konten Cerita" className="w-full h-full object-cover" />
