@@ -149,7 +149,6 @@ export function StoryViewer({ stories, initialAuthorId, isOpen, onClose }: Story
         const video = videoRef.current;
         
         // Load and Play
-        video.load();
         if (!isPaused && !showViews && !showComments) {
             video.play().catch(err => console.log("Playback interaction required:", err));
         } else {
@@ -419,7 +418,17 @@ export function StoryViewer({ stories, initialAuthorId, isOpen, onClose }: Story
                 </div>
             </div>
 
-            {isAuthor && <StoryViewersSheet storyId={currentStory.id} isOpen={showViews} onOpenChange={setShowViews} />}
+            {isAuthor && (
+              <StoryViewersSheet 
+                storyId={currentStory.id} 
+                isOpen={showViews} 
+                onOpenChange={setShowViews} 
+                onStoryDeleted={() => {
+                  setShowViews(false);
+                  onClose();
+                }}
+              />
+            )}
             <StoryCommentsSheet storyId={currentStory.id} isOpen={showComments} onOpenChange={setShowComments} />
         </div>
       </DialogContent>
