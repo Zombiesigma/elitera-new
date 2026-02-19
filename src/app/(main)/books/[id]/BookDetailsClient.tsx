@@ -2,7 +2,7 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'link';
+import Link from 'next/link';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
