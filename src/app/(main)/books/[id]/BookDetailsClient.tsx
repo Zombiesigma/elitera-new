@@ -1,7 +1,8 @@
+
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
+import Link from 'link';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
@@ -12,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Eye, BookOpen, Send, MessageCircle, Loader2, Edit, Layers, Heart, Share2, Users, Globe, Lock } from 'lucide-react';
+import { Eye, BookOpen, Send, MessageCircle, Loader2, Edit, Layers, Heart, Share2, Users, Globe, Download, Clapperboard, CheckCircle2, Clock } from "lucide-react";
 import type { Book, Comment, User, Favorite } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -111,7 +112,7 @@ export default function BookDetailsClient() {
                     const notificationsCol = collection(firestore, 'users', book.authorId, 'notifications');
                     addDoc(notificationsCol, {
                         type: 'comment' as const,
-                        text: `${currentUser.displayName} mengomentari buku Anda: ${book.title}`,
+                        text: `${currentUser.displayName} mengomentari karya Anda: ${book.title}`,
                         link: `/books/${params.id}`,
                         actor: {
                             uid: currentUser.uid,
@@ -173,7 +174,7 @@ export default function BookDetailsClient() {
                     const notificationsCol = collection(firestore, 'users', book.authorId, 'notifications');
                     addDoc(notificationsCol, {
                         type: 'favorite' as const,
-                        text: `${currentUser.displayName} menyukai buku Anda: ${book.title}`,
+                        text: `${currentUser.displayName} menyukai karya Anda: ${book.title}`,
                         link: `/books/${params.id}`,
                         actor: {
                             uid: currentUser.uid,
@@ -206,7 +207,7 @@ export default function BookDetailsClient() {
     if (!book) return;
     const shareData = {
       title: book.title,
-      text: `Lihat buku "${book.title}" oleh ${book.authorName} di Elitera!`,
+      text: `Lihat ${book.type === 'screenplay' ? 'naskah' : 'buku'} "${book.title}" oleh ${book.authorName} di Elitera!`,
       url: window.location.href,
     };
 
@@ -221,7 +222,7 @@ export default function BookDetailsClient() {
         await navigator.clipboard.writeText(shareData.url);
         toast({
           title: "Tautan Disalin",
-          description: "Tautan buku telah disalin ke clipboard Anda.",
+          description: "Tautan karya telah disalin ke clipboard Anda.",
         });
       } catch (error) {
         console.error('Failed to copy link:', error);
@@ -234,6 +235,15 @@ export default function BookDetailsClient() {
     }
   };
 
+  const handleDownload = () => {
+    if (!book?.fileUrl) return;
+    window.open(book.fileUrl, '_blank');
+    toast({
+        title: "Mengunduh Berkas",
+        description: "Naskah asli sedang dibuka di jendela baru.",
+    });
+  };
+
   if (isBookLoading || isAuthorLoading) {
     return <BookDetailsSkeleton />;
   }
@@ -241,6 +251,8 @@ export default function BookDetailsClient() {
   if (!book) {
     notFound();
   }
+
+  const isScreenplay = book.type === 'screenplay';
 
   return (
     <div className="relative">
@@ -284,7 +296,9 @@ export default function BookDetailsClient() {
                   <div className="flex flex-col items-center gap-1">
                       <Layers className="h-4 w-4 text-accent" />
                       <span className="font-bold text-sm">{isMounted ? book.chapterCount ?? 0 : '...'}</span>
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Bab</span>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                        {isScreenplay ? 'Bagian' : 'Bab'}
+                      </span>
                   </div>
               </CardContent>
             </Card>
@@ -293,18 +307,38 @@ export default function BookDetailsClient() {
           {/* Right Column: Details */}
           <div className="md:col-span-8 lg:col-span-9 space-y-8">
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <Badge variant="secondary" className="px-3 py-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
-                    {book.genre}
-                </Badge>
-                {book.visibility === 'followers_only' ? (
-                    <Badge variant="outline" className="px-3 py-1 gap-1.5 border-accent/30 text-accent bg-accent/5">
-                        <Users className="h-3 w-3" /> Hanya Pengikut
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                    <Badge variant="secondary" className="px-3 py-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
+                        {book.genre}
                     </Badge>
-                ) : (
-                    <Badge variant="outline" className="px-3 py-1 gap-1.5 border-muted-foreground/30 text-muted-foreground">
-                        <Globe className="h-3 w-3" /> Publik
+                    {isScreenplay && (
+                        <Badge variant="outline" className="px-3 py-1 gap-1.5 border-orange-500/30 text-orange-500 bg-orange-500/5 font-black uppercase text-[10px]">
+                            <Clapperboard className="h-3 w-3" /> Naskah Film
+                        </Badge>
+                    )}
+                    <Badge variant={book.isCompleted ? "default" : "outline"} className={cn(
+                        "px-3 py-1 gap-1.5",
+                        book.isCompleted ? "bg-emerald-500 hover:bg-emerald-600 text-white border-none" : "border-primary/30 text-primary bg-primary/5"
+                    )}>
+                        {book.isCompleted ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                        {book.isCompleted ? 'Tamat' : 'Berlanjut'}
                     </Badge>
+                    {book.visibility === 'followers_only' ? (
+                        <Badge variant="outline" className="px-3 py-1 gap-1.5 border-accent/30 text-accent bg-accent/5">
+                            <Users className="h-3 w-3" /> Hanya Pengikut
+                        </Badge>
+                    ) : (
+                        <Badge variant="outline" className="px-3 py-1 gap-1.5 border-muted-foreground/30 text-muted-foreground">
+                            <Globe className="h-3 w-3" /> Publik
+                        </Badge>
+                    )}
+                </div>
+                
+                {book.fileUrl && (
+                    <Button variant="outline" size="sm" onClick={handleDownload} className="rounded-full border-primary/20 text-primary hover:bg-primary/5 font-bold h-9">
+                        <Download className="h-3.5 w-3.5 mr-2" /> Unduh PDF
+                    </Button>
                 )}
               </div>
               
@@ -319,7 +353,9 @@ export default function BookDetailsClient() {
                         <AvatarFallback>{book.authorName?.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold leading-none">Penulis</p>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold leading-none">
+                            {isScreenplay ? 'Penulis Skenario' : 'Penulis'}
+                        </p>
                         <span className="font-bold text-sm group-hover:text-primary transition-colors">{book.authorName}</span>
                     </div>
                 </Link>
@@ -343,7 +379,8 @@ export default function BookDetailsClient() {
             <div className="flex flex-col sm:flex-row gap-4">
               <Button size="lg" className="flex-1 h-14 text-base font-bold shadow-xl shadow-primary/20 rounded-xl" asChild>
                 <Link href={`/books/${book.id}/read`}>
-                    <BookOpen className="mr-2 h-5 w-5" /> Mulai Membaca
+                    {isScreenplay ? <Clapperboard className="mr-2 h-5 w-5" /> : <BookOpen className="mr-2 h-5 w-5" />}
+                    {isScreenplay ? 'Baca Naskah' : 'Mulai Membaca'}
                 </Link>
               </Button>
               
@@ -408,7 +445,7 @@ export default function BookDetailsClient() {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-headline font-black flex items-center gap-3">
                     <MessageCircle className="h-6 w-6 text-primary"/> 
-                    Komentar 
+                    Diskusi 
                     <span className="bg-muted text-muted-foreground text-sm font-bold px-3 py-1 rounded-full">{comments?.length || 0}</span>
                 </h2>
               </div>
@@ -421,7 +458,7 @@ export default function BookDetailsClient() {
                   </Avatar>
                   <div className="w-full relative">
                     <Textarea 
-                      placeholder="Bagikan pemikiran Anda tentang buku ini..." 
+                      placeholder="Bagikan pemikiran Anda tentang karya ini..." 
                       className="w-full min-h-[100px] bg-background/50 border-none shadow-none focus-visible:ring-primary/20 resize-none rounded-xl"
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
@@ -434,7 +471,7 @@ export default function BookDetailsClient() {
                             disabled={isSubmitting || !newComment.trim()}
                         >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Send className="h-4 w-4 mr-2"/>}
-                            Kirim Komentar
+                            Kirim Ulasan
                         </Button>
                     </div>
                   </div>
@@ -456,8 +493,8 @@ export default function BookDetailsClient() {
                   {!areCommentsLoading && comments?.length === 0 && (
                       <div className="text-center py-20 border-2 border-dashed border-muted rounded-3xl">
                           <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
-                          <p className="text-lg font-headline font-bold text-muted-foreground/60">Belum Ada Diskusi</p>
-                          <p className="text-sm text-muted-foreground max-w-[240px] mx-auto mt-2">Jadilah pembaca pertama yang memberikan ulasan!</p>
+                          <p className="text-lg font-headline font-bold text-muted-foreground/60">Belum Ada Suara</p>
+                          <p className="text-sm text-muted-foreground max-w-[240px] mx-auto mt-2">Jadilah orang pertama yang memberikan apresiasi!</p>
                       </div>
                   )}
               </div>
