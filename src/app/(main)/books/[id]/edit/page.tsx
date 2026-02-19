@@ -36,7 +36,7 @@ import { uploadFile } from '@/lib/uploader';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import Link from 'link';
+import Link from 'next/link';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 const chapterSchema = z.object({
