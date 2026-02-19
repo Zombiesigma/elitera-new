@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -17,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, BookUp, GripVertical, FileEdit, Info, Trash2, Settings, FileImage, Upload, Sparkles, Globe, Users, CheckCircle2, ChevronLeft, Menu, X } from "lucide-react";
+import { Loader2, PlusCircle, BookUp, GripVertical, FileEdit, Info, Trash2, Settings, FileImage, Upload, Sparkles, Globe, Users, CheckCircle2, ChevronLeft, Menu, X, Clapperboard, Check } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +36,7 @@ import { uploadFile } from '@/lib/uploader';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
+import Link from 'link';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 const chapterSchema = z.object({
@@ -46,6 +47,7 @@ const chapterSchema = z.object({
 const bookSettingsSchema = z.object({
   title: z.string().min(3, { message: "Judul minimal 3 karakter." }).max(100, { message: "Judul maksimal 100 karakter."}),
   genre: z.string({ required_error: "Genre harus dipilih."}),
+  type: z.enum(['book', 'screenplay']).default('book'),
   synopsis: z.string().min(10, { message: "Sinopsis minimal 10 karakter." }).max(1000, { message: "Sinopsis maksimal 1000 karakter."}),
   visibility: z.enum(['public', 'followers_only'], { required_error: "Pilih visibilitas buku." }),
 });
@@ -60,6 +62,7 @@ export default function EditBookPage() {
   const [activeTab, setActiveTab] = useState<'editor' | 'settings'>('editor');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -68,18 +71,19 @@ export default function EditBookPage() {
   
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeletingDialogOpen] = useState(false);
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const prevChapterIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isReviewDialogOpen && !isDeleteDialogOpen) {
+    if (!isReviewDialogOpen && !isDeleteDialogOpen && !isCompleteDialogOpen) {
         const timer = setTimeout(() => {
             document.body.style.pointerEvents = '';
         }, 300);
         return () => clearTimeout(timer);
     }
-  }, [isReviewDialogOpen, isDeleteDialogOpen]);
+  }, [isReviewDialogOpen, isDeleteDialogOpen, isCompleteDialogOpen]);
 
   const bookRef = useMemo(() => (
     firestore ? doc(firestore, 'books', params.id) : null
@@ -106,6 +110,7 @@ export default function EditBookPage() {
       title: "",
       synopsis: "",
       genre: "",
+      type: "book",
       visibility: "public",
     },
   });
@@ -113,6 +118,7 @@ export default function EditBookPage() {
   const isAdmin = userProfile?.role === 'admin';
   const isAuthor = book?.authorId === currentUser?.uid;
   const isReviewing = book?.status === 'pending_review' && !isAdmin;
+  const isCompleted = book?.isCompleted === true;
 
   useEffect(() => {
     if (book && !settingsForm.formState.isDirty) {
@@ -120,6 +126,7 @@ export default function EditBookPage() {
         title: book.title,
         synopsis: book.synopsis,
         genre: book.genre,
+        type: book.type || "book",
         visibility: book.visibility || "public",
       });
       if (!selectedFile) setPreviewUrl(book.coverUrl);
@@ -147,7 +154,7 @@ export default function EditBookPage() {
   }, [chapters, activeChapterId, activeTab, chapterForm]);
 
   const saveCurrentChapter = async () => {
-    if (!firestore || !activeChapterId || !chapterForm.formState.isDirty || isReviewing) {
+    if (!firestore || !activeChapterId || !chapterForm.formState.isDirty || isReviewing || isCompleted) {
       return;
     }
     try {
@@ -163,12 +170,12 @@ export default function EditBookPage() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-        if (activeTab === 'editor' && chapterForm.formState.isDirty && !isReviewing) {
+        if (activeTab === 'editor' && chapterForm.formState.isDirty && !isReviewing && !isCompleted) {
             saveCurrentChapter();
         }
     }, 15000);
     return () => clearInterval(interval);
-  }, [activeTab, chapterForm.formState.isDirty, isReviewing, activeChapterId]);
+  }, [activeTab, chapterForm.formState.isDirty, isReviewing, isCompleted, activeChapterId]);
 
   const handleTabSwitch = async (tab: 'editor' | 'settings') => {
     if (tab === activeTab) return;
@@ -241,7 +248,7 @@ export default function EditBookPage() {
       toast({
         variant: "success",
         title: "Perubahan Disimpan",
-        description: "Detail buku Anda telah berhasil diperbarui.",
+        description: "Detail karya Anda telah berhasil diperbarui.",
       });
     } catch (error: any) {
       toast({
@@ -271,7 +278,7 @@ export default function EditBookPage() {
       toast({ 
         variant: "success",
         title: "Karya Terkirim", 
-        description: "Admin Elitera akan segera meninjau buku Anda." 
+        description: "Admin Elitera akan segera meninjau karya Anda." 
       });
     } catch (error) {
       toast({ variant: "destructive", title: "Gagal Mengirim" });
@@ -279,16 +286,35 @@ export default function EditBookPage() {
       setIsSubmittingReview(false);
     }
   };
+
+  const handleMarkAsCompleted = async () => {
+    if (!firestore || !bookRef) return;
+    setIsCompleting(true);
+    try {
+        if (chapterForm.formState.isDirty) await saveCurrentChapter();
+        await updateDoc(bookRef, { isCompleted: true });
+        setIsCompleteDialogOpen(false);
+        toast({
+            variant: "success",
+            title: "Karya Telah Tamat",
+            description: "Selamat! Karya Anda sekarang dikunci dan ditandai sebagai Mahakarya Selesai."
+        });
+    } catch (error) {
+        toast({ variant: "destructive", title: "Gagal Menandai Tamat" });
+    } finally {
+        setIsCompleting(false);
+    }
+  };
   
   const handleAddChapter = async () => {
-    if (!firestore || !bookRef || isReviewing) return;
+    if (!firestore || !bookRef || isReviewing || isCompleted) return;
     try {
       if (chapterForm.formState.isDirty) await saveCurrentChapter();
 
       const newOrder = chapters ? chapters.length + 1 : 1;
       const chapterData = {
-          title: `Bab ${newOrder}`,
-          content: "Mulai tulis petualangan baru di sini...",
+          title: book?.type === 'screenplay' ? `BAGIAN ${newOrder}` : `Bab ${newOrder}`,
+          content: book?.type === 'screenplay' ? "INT. LOKASI - WAKTU\n\nMulai tulis naskahmu di sini..." : "Mulai tulis petualangan baru di sini...",
           order: newOrder,
           createdAt: serverTimestamp()
       };
@@ -305,9 +331,9 @@ export default function EditBookPage() {
       setActiveChapterId(newChapterDoc.id);
       setIsMobileSidebarOpen(false);
       
-      toast({ variant: "success", title: "Bab Baru Berhasil Dibuat" });
+      toast({ variant: "success", title: "Berhasil Ditambahkan" });
     } catch (e) {
-        toast({ variant: 'destructive', title: 'Gagal Menambah Bab' });
+        toast({ variant: 'destructive', title: 'Gagal Menambah Bagian' });
     }
   }
 
@@ -353,6 +379,7 @@ export default function EditBookPage() {
   }
 
   const activeChapter = chapters?.find(c => c.id === activeChapterId);
+  const isScreenplay = book.type === 'screenplay';
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -360,7 +387,9 @@ export default function EditBookPage() {
             <Link href={`/books/${book.id}`} className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors mb-4 group">
                 <ChevronLeft className="h-3 w-3 transition-transform group-hover:-translate-x-1" /> Kembali ke Detail
             </Link>
-            <p className="text-[10px] uppercase tracking-[0.2em] font-black text-primary/60 mb-1">Editor Karya</p>
+            <p className="text-[10px] uppercase tracking-[0.2em] font-black text-primary/60 mb-1">
+                {isScreenplay ? 'Editor Naskah' : 'Editor Buku'}
+            </p>
             <h2 className="font-headline text-xl font-bold truncate leading-tight">{book.title}</h2>
         </div>
         
@@ -375,13 +404,15 @@ export default function EditBookPage() {
                     onClick={() => handleTabSwitch('settings')}
                 >
                     <Settings className="h-4 w-4" />
-                    <span className="font-bold text-sm">Identitas Buku</span>
+                    <span className="font-bold text-sm">Identitas Karya</span>
                 </Button>
             </div>
             
             <div className="space-y-3">
                 <div className="flex items-center justify-between px-2">
-                    <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Struktur Bab</p>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
+                        {isScreenplay ? 'Alur Cerita' : 'Struktur Bab'}
+                    </p>
                     <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{chapters?.length || 0}</span>
                 </div>
 
@@ -411,9 +442,9 @@ export default function EditBookPage() {
                 variant="outline" 
                 className="w-full h-11 rounded-xl border-dashed border-2 hover:border-primary hover:bg-primary/5 hover:text-primary transition-all font-bold" 
                 onClick={handleAddChapter} 
-                disabled={isReviewing}
+                disabled={isReviewing || isCompleted}
             >
-                <PlusCircle className="mr-2 h-4 w-4" /> Tambah Bab Baru
+                <PlusCircle className="mr-2 h-4 w-4" /> Tambah {isScreenplay ? 'Bagian' : 'Bab'}
             </Button>
         </div>
     </div>
@@ -437,7 +468,7 @@ export default function EditBookPage() {
                         </SheetTrigger>
                         <SheetContent side="left" className="p-0 w-80" onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = ''; }}>
                             <SheetHeader className="sr-only">
-                                <SheetTitle>Menu Editor Bab</SheetTitle>
+                                <SheetTitle>Menu Editor</SheetTitle>
                             </SheetHeader>
                             <SidebarContent />
                         </SheetContent>
@@ -447,11 +478,11 @@ export default function EditBookPage() {
                 <div className={cn("flex items-center gap-2", activeTab === 'settings' ? "text-primary" : "text-foreground")}>
                     {activeTab === 'settings' ? <Settings className="h-5 w-5 hidden sm:block"/> : <FileEdit className="h-5 w-5 hidden sm:block"/>}
                     <h3 className="font-bold text-sm md:text-base truncate">
-                        {activeTab === 'settings' ? 'Pengaturan Buku' : (activeChapter?.title || "Pilih Bab")}
+                        {activeTab === 'settings' ? 'Pengaturan Karya' : (activeChapter?.title || "Pilih Bab")}
                     </h3>
                 </div>
                 
-                {lastSaved && (
+                {lastSaved && !isCompleted && (
                     <div className="hidden lg:flex items-center gap-1.5 text-[10px] font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
                         <CheckCircle2 className="h-3 w-3" /> Tersimpan {lastSaved.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                     </div>
@@ -459,11 +490,35 @@ export default function EditBookPage() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-                <div className="hidden sm:block">
-                    <Badge variant={book.status === 'published' ? 'default' : 'secondary'} className={cn("text-[10px] uppercase font-black tracking-widest px-3 py-1", book.status === 'published' && 'bg-green-500 hover:bg-green-600')}>
-                        {book.status === 'published' ? 'Terbit' : book.status === 'pending_review' ? 'Ditinjau' : book.status === 'rejected' ? 'Ditolak' : 'Draf'}
+                {isCompleted && (
+                    <Badge className="bg-emerald-500 hover:bg-emerald-600 font-black text-[9px] uppercase tracking-widest px-3 py-1 mr-2 hidden sm:flex items-center gap-1.5 shadow-lg shadow-emerald-500/20">
+                        <Check className="h-3 w-3" /> Mahakarya Selesai
                     </Badge>
-                </div>
+                )}
+
+                {!isCompleted && (
+                    <AlertDialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="rounded-full border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-bold hidden lg:flex h-9 px-4">
+                                Tandai Tamat
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = ''; }}>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="font-headline text-2xl text-emerald-600">Selesaikan Mahakarya?</AlertDialogTitle>
+                                <AlertDialogDescription className="text-base">
+                                    Tindakan ini akan mengunci seluruh konten bab secara permanen. Anda tidak dapat menambah atau mengedit bab lagi, namun tetap dapat memperbarui informasi dasar seperti sinopsis dan sampul.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="mt-6 gap-2">
+                                <AlertDialogCancel className="rounded-full">Belum Selesai</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleMarkAsCompleted} className="bg-emerald-600 hover:bg-emerald-700 rounded-full px-8 font-bold text-white">
+                                    {isCompleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ya, Sudah Tamat'}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
 
                 <div className="h-6 w-px bg-border mx-1 hidden sm:block" />
 
@@ -495,8 +550,8 @@ export default function EditBookPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = ''; }}>
                             <AlertDialogHeader>
-                                <AlertDialogTitle className="text-destructive font-headline text-2xl">Hapus Mahakarya Ini?</AlertDialogTitle>
-                                <AlertDialogDescription className="text-base">Tindakan ini tidak dapat dibatalkan. Seluruh bab dan data buku akan hilang selamanya.</AlertDialogDescription>
+                                <AlertDialogTitle className="text-destructive font-headline text-2xl">Hapus Karya Ini?</AlertDialogTitle>
+                                <AlertDialogDescription className="text-base">Tindakan ini tidak dapat dibatalkan. Seluruh isi dan data karya akan hilang selamanya.</AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter className="mt-6">
                                 <AlertDialogCancel className="rounded-full">Batal</AlertDialogCancel>
@@ -519,7 +574,7 @@ export default function EditBookPage() {
                             <form onSubmit={settingsForm.handleSubmit(onSettingsSubmit)} className="space-y-10 pb-20">
                                 <div className="grid md:grid-cols-12 gap-10">
                                     <div className="md:col-span-4 space-y-4">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Sampul Buku</Label>
+                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Sampul Karya</Label>
                                         <div 
                                             className="aspect-[2/3] bg-muted rounded-2xl border-2 border-dashed border-primary/20 flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer hover:border-primary/50 transition-all shadow-xl"
                                             onClick={() => document.getElementById('edit-cover-upload')?.click()}
@@ -543,30 +598,53 @@ export default function EditBookPage() {
                                                 </FormItem>
                                             )} 
                                         />
-                                        <FormField 
-                                            control={settingsForm.control} 
-                                            name="genre" 
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="font-bold">Genre</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger className="h-12 rounded-xl focus:ring-primary/20">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent className="rounded-xl">
-                                                            <SelectItem value="novel">Novel</SelectItem>
-                                                            <SelectItem value="fantasy">Fantasi</SelectItem>
-                                                            <SelectItem value="sci-fi">Fiksi Ilmiah</SelectItem>
-                                                            <SelectItem value="horror">Horor</SelectItem>
-                                                            <SelectItem value="romance">Romansa</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )} 
-                                        />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <FormField 
+                                                control={settingsForm.control} 
+                                                name="genre" 
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="font-bold">Genre</FormLabel>
+                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger className="h-12 rounded-xl focus:ring-primary/20">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent className="rounded-xl">
+                                                                <SelectItem value="novel">Novel</SelectItem>
+                                                                <SelectItem value="fantasy">Fantasi</SelectItem>
+                                                                <SelectItem value="sci-fi">Fiksi Ilmiah</SelectItem>
+                                                                <SelectItem value="horror">Horor</SelectItem>
+                                                                <SelectItem value="romance">Romansa</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )} 
+                                            />
+                                            <FormField 
+                                                control={settingsForm.control} 
+                                                name="type" 
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="font-bold">Jenis Karya</FormLabel>
+                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger className="h-12 rounded-xl focus:ring-primary/20">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent className="rounded-xl">
+                                                                <SelectItem value="book">Novel / Buku</SelectItem>
+                                                                <SelectItem value="screenplay">Naskah Film</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )} 
+                                            />
+                                        </div>
                                         <FormField 
                                             control={settingsForm.control} 
                                             name="visibility" 
@@ -617,11 +695,15 @@ export default function EditBookPage() {
                     <motion.div key={activeChapterId} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-4xl mx-auto py-8 md:py-12 px-6 lg:px-12">
                         <Form {...chapterForm}>
                             <form className="space-y-8 pb-32" onSubmit={(e) => e.preventDefault()}>
-                                {book.status === 'pending_review' && (
-                                    <Alert className="bg-primary/5 border-primary/20 rounded-2xl">
-                                        <Info className="h-4 w-4 text-primary" />
-                                        <AlertTitle className="font-bold">Konten Terkunci</AlertTitle>
-                                        <AlertDescription className="text-muted-foreground">Buku sedang dalam tahap peninjauan admin Elitera.</AlertDescription>
+                                {(book.status === 'pending_review' || isCompleted) && (
+                                    <Alert className={cn("rounded-2xl", isCompleted ? "bg-emerald-50 border-emerald-200" : "bg-primary/5 border-primary/20")}>
+                                        {isCompleted ? <Check className="h-4 w-4 text-emerald-600" /> : <Info className="h-4 w-4 text-primary" />}
+                                        <AlertTitle className={cn("font-bold", isCompleted && "text-emerald-700")}>
+                                            {isCompleted ? "Mahakarya Selesai & Terkunci" : "Konten Terkunci"}
+                                        </AlertTitle>
+                                        <AlertDescription className={cn(isCompleted ? "text-emerald-600/80" : "text-muted-foreground")}>
+                                            {isCompleted ? "Karya ini sudah ditandai tamat. Isi bab tidak dapat diubah lagi." : "Karya sedang dalam tahap peninjauan admin Elitera."}
+                                        </AlertDescription>
                                     </Alert>
                                 )}
                                 <FormField 
@@ -630,7 +712,7 @@ export default function EditBookPage() {
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormControl>
-                                                <Input placeholder="Judul Bab..." {...field} disabled={isReviewing} className="border-none shadow-none text-3xl md:text-5xl font-headline font-black px-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/30 mb-2" />
+                                                <Input placeholder={isScreenplay ? "BAGIAN 1" : "Judul Bab..."} {...field} disabled={isReviewing || isCompleted} className="border-none shadow-none text-3xl md:text-5xl font-headline font-black px-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/30 mb-2" />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -643,7 +725,15 @@ export default function EditBookPage() {
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormControl>
-                                                <Textarea placeholder="Mulai tuangkan kata-kata Anda..." {...field} className="min-h-[70vh] border-none shadow-none px-0 focus-visible:ring-0 text-lg md:text-2xl leading-[1.8] font-serif resize-none bg-transparent placeholder:text-muted-foreground/20 scroll-smooth" disabled={isReviewing} />
+                                                <Textarea 
+                                                    placeholder={isScreenplay ? "INT. LOKASI - WAKTU\n\nMulai tuangkan naskahmu..." : "Mulai tuangkan kata-kata Anda..."} 
+                                                    {...field} 
+                                                    className={cn(
+                                                        "min-h-[70vh] border-none shadow-none px-0 focus-visible:ring-0 leading-[1.8] resize-none bg-transparent placeholder:text-muted-foreground/20 scroll-smooth",
+                                                        isScreenplay ? "font-mono text-base md:text-lg" : "text-lg md:text-2xl font-serif"
+                                                    )} 
+                                                    disabled={isReviewing || isCompleted} 
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -655,9 +745,11 @@ export default function EditBookPage() {
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full text-center p-12">
                         <PlusCircle className="h-16 w-16 text-muted-foreground/20 mb-6 animate-bounce" />
-                        <h4 className="text-2xl font-headline font-bold">Mulai Bab Pertama</h4>
+                        <h4 className="text-2xl font-headline font-bold">Mulai Bagian Baru</h4>
                         <p className="text-muted-foreground max-w-sm mx-auto mb-8">Setiap cerita hebat dimulai dengan satu kata. Mari kita mulai babak baru karya Anda.</p>
-                        <Button onClick={handleAddChapter} size="lg" className="rounded-full px-8 font-bold shadow-lg shadow-primary/10"><PlusCircle className="mr-2 h-5 w-5" /> Buat Bab Pertama</Button>
+                        <Button onClick={handleAddChapter} size="lg" className="rounded-full px-8 font-bold shadow-lg shadow-primary/10" disabled={isCompleted}>
+                            <PlusCircle className="mr-2 h-5 w-5" /> Buat {isScreenplay ? 'Bagian' : 'Bab'} Pertama
+                        </Button>
                     </div>
                 )}
             </AnimatePresence>
