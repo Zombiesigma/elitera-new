@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export type User = {
@@ -27,8 +28,10 @@ export type Book = {
   id: string;
   title: string;
   genre: string;
+  type: 'book' | 'screenplay';
   synopsis: string;
   coverUrl: string;
+  fileUrl?: string; // Tautan ke file asli di GitHub
   viewCount: number;
   favoriteCount: number;
   chapterCount: number;
@@ -37,6 +40,7 @@ export type Book = {
   authorUsername: string;
   authorAvatarUrl: string;
   status: 'draft' | 'pending_review' | 'published' | 'rejected';
+  isCompleted?: boolean; // Indikator karya sudah tamat
   visibility: 'public' | 'followers_only';
   createdAt: Timestamp;
 };
@@ -94,8 +98,8 @@ export type Chat = {
     timestamp: Timestamp;
     senderId: string;
     type?: string;
-    messageId?: string;
     status?: 'active' | 'ended';
+    messageId?: string;
   };
   unreadCounts?: { [key: string]: number };
 };
@@ -116,6 +120,14 @@ export type VoiceNoteMessage = {
   id: string;
   type: 'voice_note';
   audioUrl: string;
+};
+
+export type VideoCallMessage = {
+    id: string;
+    type: 'video_call';
+    roomUrl: string;
+    callerName: string;
+    status: 'active' | 'ended';
 };
 
 export type BookShareMessage = {
@@ -140,16 +152,8 @@ export type ReelShareMessage = {
   };
 };
 
-export type VideoCallMessage = {
-  id: string;
-  type: 'video_call';
-  roomUrl: string;
-  callerName: string;
-  status: 'active' | 'ended';
-};
-
 export type ChatMessage = (
-  TextMessage | ImageMessage | VoiceNoteMessage | BookShareMessage | ReelShareMessage | VideoCallMessage
+  TextMessage | ImageMessage | VoiceNoteMessage | VideoCallMessage | BookShareMessage | ReelShareMessage
 ) & {
   id: string;
   senderId: string;
