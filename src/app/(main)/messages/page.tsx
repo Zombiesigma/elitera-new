@@ -354,8 +354,6 @@ export default function MessagesPage() {
   return (
     <div className="h-[calc(100dvh-64px)] md:h-[calc(100vh-64px)] -mt-6 -mx-4 md:-mx-6 border-none overflow-hidden flex flex-col bg-background relative" style={{ height: viewportHeight }}>
       <div className="grid grid-cols-12 flex-1 h-full overflow-hidden">
-        
-        {/* Sidebar: Chat List */}
         <div className={cn(
           "col-span-12 md:col-span-4 lg:col-span-3 border-r h-full flex flex-col bg-muted/10 overflow-hidden relative transition-all duration-500",
           selectedChatId ? "hidden md:flex" : "flex"
@@ -461,7 +459,6 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {/* Chat Box: Messages Area */}
         <div className={cn(
             "col-span-12 md:col-span-8 lg:col-span-9 h-full flex flex-col overflow-hidden relative bg-background transition-all duration-500",
             selectedChatId ? 'flex' : 'hidden md:flex'
