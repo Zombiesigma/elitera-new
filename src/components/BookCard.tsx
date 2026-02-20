@@ -3,8 +3,9 @@ import Image from 'next/image';
 import type { Book } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Eye, Layers, Heart } from 'lucide-react';
+import { Eye, Layers, Heart, CheckCircle2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 type BookCardProps = {
   book: Book;
@@ -19,7 +20,7 @@ export function BookCard({ book }: BookCardProps) {
 
   return (
     <Link href={`/books/${book.id}`} className="group block h-full">
-      <Card className="overflow-hidden transition-all duration-300 active:scale-95 border-none shadow-sm hover:shadow-xl rounded-[1.5rem] h-full flex flex-col bg-card/50 backdrop-blur-sm">
+      <Card className="overflow-hidden transition-all duration-300 active:scale-95 border-none shadow-sm hover:shadow-xl rounded-[1.5rem] h-full flex flex-col bg-card/50 backdrop-blur-sm relative">
         <div className="aspect-[2/3] relative overflow-hidden">
           <Image
             src={book.coverUrl}
@@ -28,13 +29,23 @@ export function BookCard({ book }: BookCardProps) {
             className="object-cover bg-muted transition-transform duration-500 group-hover:scale-110"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
           />
+          
+          <div className="absolute top-2 left-2 flex flex-col gap-1.5">
+            {book.isCompleted && (
+                <div className="bg-emerald-500/90 backdrop-blur-md px-2 py-1 rounded-full flex items-center gap-1 border border-emerald-400/30 shadow-lg">
+                    <CheckCircle2 className="h-2.5 w-2.5 text-white fill-emerald-500" />
+                    <span className="text-[7px] font-black text-white uppercase tracking-widest">Tamat</span>
+                </div>
+            )}
+          </div>
+
           <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md px-2 py-1 rounded-full flex items-center gap-1.5 border border-white/10">
              <Heart className="h-2.5 w-2.5 text-red-500 fill-current" />
              <span className="text-[8px] font-black text-white">{isMounted ? new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(book.favoriteCount) : '...'}</span>
           </div>
         </div>
         <CardContent className="p-4 flex flex-col flex-grow space-y-3">
-          <h3 className="font-headline text-sm font-black leading-tight group-hover:text-primary transition-colors line-clamp-2">
+          <h3 className="font-headline text-sm font-black leading-tight group-hover:text-primary transition-colors line-clamp-2 italic">
             {book.title}
           </h3>
           <div className="flex items-center gap-2">
