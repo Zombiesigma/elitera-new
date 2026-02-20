@@ -7,9 +7,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  experimental: {
-    serverExternalPackages: ['pdfkit', 'pdf-parse', 'pdf-lib'],
-  },
+  serverExternalPackages: ['pdfkit', 'pdf-parse', 'pdf-lib'],
   images: {
     remotePatterns: [
       {
