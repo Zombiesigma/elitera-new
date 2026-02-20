@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -7,9 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { notFound, useParams, useRouter } from 'next/navigation';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
-import { doc, updateDoc, collection, addDoc, serverTimestamp, query, orderBy, writeBatch, increment, deleteDoc, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, serverTimestamp, query, orderBy, writeBatch, increment, deleteDoc } from 'firebase/firestore';
 import type { Book, Chapter, User as AppUser } from '@/lib/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, BookUp, GripVertical, FileEdit, Info, Trash2, Settings, FileImage, Upload, Sparkles, Globe, Users, CheckCircle2, ChevronLeft, Menu, X, Clapperboard, Check } from "lucide-react";
+import { Loader2, PlusCircle, BookUp, GripVertical, FileEdit, Info, Trash2, Settings, FileImage, Upload, Sparkles, Globe, Users, CheckCircle2, ChevronLeft, Menu, X, Check } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,7 +78,9 @@ export default function EditBookPage() {
   useEffect(() => {
     if (!isReviewDialogOpen && !isDeleteDialogOpen && !isCompleteDialogOpen) {
         const timer = setTimeout(() => {
-            document.body.style.pointerEvents = '';
+            if (typeof document !== 'undefined') {
+                document.body.style.pointerEvents = 'auto';
+            }
         }, 300);
         return () => clearTimeout(timer);
     }
@@ -372,7 +373,7 @@ export default function EditBookPage() {
         <div className="flex flex-col items-center justify-center h-screen text-center p-6">
             <div className="bg-destructive/10 p-4 rounded-full mb-6"><Trash2 className="h-12 w-12 text-destructive" /></div>
             <h1 className="text-3xl font-headline font-bold mb-2">Akses Dibatasi</h1>
-            <p className="text-muted-foreground max-w-sm mb-8">Hanya penulis asli yang memiliki otoritas untuk mengedit karya ini.</p>
+            <p className="text-muted-foreground max-sm mb-8">Hanya penulis asli yang memiliki otoritas untuk mengedit karya ini.</p>
              <Button asChild size="lg" className="rounded-full px-8"><Link href="/">Kembali ke Beranda</Link></Button>
         </div>
     )
@@ -381,7 +382,7 @@ export default function EditBookPage() {
   const activeChapter = chapters?.find(c => c.id === activeChapterId);
   const isScreenplay = book.type === 'screenplay';
 
-  const SidebarContent = () => (
+  const SidebarContentBody = () => (
     <div className="flex flex-col h-full">
         <div className="p-6 border-b bg-background/50 backdrop-blur">
             <Link href={`/books/${book.id}`} className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors mb-4 group">
@@ -393,7 +394,7 @@ export default function EditBookPage() {
             <h2 className="font-headline text-xl font-bold truncate leading-tight">{book.title}</h2>
         </div>
         
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
             <div className="space-y-1">
                 <Button 
                     variant={activeTab === 'settings' ? "secondary" : "ghost"}
@@ -453,7 +454,7 @@ export default function EditBookPage() {
   return (
     <div className="flex h-[calc(100vh-theme(spacing.14))] -m-6 overflow-hidden bg-background">
       <aside className="hidden md:flex flex-col w-72 lg:w-80 border-r bg-muted/20 shrink-0">
-        <SidebarContent />
+        <SidebarContentBody />
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden">
@@ -466,11 +467,11 @@ export default function EditBookPage() {
                                 <Menu className="h-5 w-5" />
                             </Button>
                         </SheetTrigger>
-                        <SheetContent side="left" className="p-0 w-80" onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = ''; }}>
+                        <SheetContent side="left" className="p-0 w-80" onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
                             <SheetHeader className="sr-only">
                                 <SheetTitle>Menu Editor</SheetTitle>
                             </SheetHeader>
-                            <SidebarContent />
+                            <SidebarContentBody />
                         </SheetContent>
                     </Sheet>
                 </div>
@@ -503,7 +504,7 @@ export default function EditBookPage() {
                                 Tandai Tamat
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = ''; }}>
+                        <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
                             <AlertDialogHeader>
                                 <AlertDialogTitle className="font-headline text-2xl text-emerald-600">Selesaikan Mahakarya?</AlertDialogTitle>
                                 <AlertDialogDescription className="text-base">
@@ -531,7 +532,7 @@ export default function EditBookPage() {
                                     {book.status === 'published' ? 'Update' : 'Publikasi'}
                                 </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = ''; }}>
+                            <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
                                 <AlertDialogHeader>
                                     <AlertDialogTitle className="font-headline text-2xl">Siap Untuk Berbagi?</AlertDialogTitle>
                                     <AlertDialogDescription className="text-base">Karya Anda akan dikirim ke tim moderasi Elitera sebelum tampil secara publik.</AlertDialogDescription>
@@ -548,7 +549,7 @@ export default function EditBookPage() {
                         <AlertDialogTrigger asChild>
                             <Button size="icon" variant="ghost" className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10" disabled={isDeleting}><Trash2 className="h-5 w-5" /></Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = ''; }}>
+                        <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
                             <AlertDialogHeader>
                                 <AlertDialogTitle className="text-destructive font-headline text-2xl">Hapus Karya Ini?</AlertDialogTitle>
                                 <AlertDialogDescription className="text-base">Tindakan ini tidak dapat dibatalkan. Seluruh isi dan data karya akan hilang selamanya.</AlertDialogDescription>
@@ -565,7 +566,7 @@ export default function EditBookPage() {
             </div>
          </header>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+        <div className="flex-1 overflow-y-auto relative">
             <AnimatePresence mode="wait">
                 {activeTab === 'settings' ? (
                     <motion.div key="settings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="max-w-3xl mx-auto py-8 md:py-12 px-6">
@@ -580,7 +581,7 @@ export default function EditBookPage() {
                                             onClick={() => document.getElementById('edit-cover-upload')?.click()}
                                         >
                                             {previewUrl ? <Image src={previewUrl} alt="Preview" fill className="object-cover transition-transform duration-500 group-hover:scale-110" /> : <FileImage className="h-12 w-12 text-muted-foreground/40" />}
-                                            <div className="absolute inset-0 bg-primary/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity duration-300"><Upload className="h-8 w-8 text-white mb-2" /><span className="text-xs font-bold text-white uppercase tracking-wider">Ganti Sampul</span></div>
+                                            <div className="absolute inset-0 bg-primary/60 backdrop-blur-sm opacity-0 group-hover:opacity-10 flex flex-col items-center justify-center transition-opacity duration-300"><Upload className="h-8 w-8 text-white mb-2" /><span className="text-xs font-bold text-white uppercase tracking-wider">Ganti Sampul</span></div>
                                         </div>
                                         <input id="edit-cover-upload" type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                                     </div>
@@ -746,7 +747,7 @@ export default function EditBookPage() {
                     <div className="flex flex-col items-center justify-center h-full text-center p-12">
                         <PlusCircle className="h-16 w-16 text-muted-foreground/20 mb-6 animate-bounce" />
                         <h4 className="text-2xl font-headline font-bold">Mulai Bagian Baru</h4>
-                        <p className="text-muted-foreground max-w-sm mx-auto mb-8">Setiap cerita hebat dimulai dengan satu kata. Mari kita mulai babak baru karya Anda.</p>
+                        <p className="text-muted-foreground max-sm mx-auto mb-8">Setiap cerita hebat dimulai dengan satu kata. Mari kita mulai babak baru karya Anda.</p>
                         <Button onClick={handleAddChapter} size="lg" className="rounded-full px-8 font-bold shadow-lg shadow-primary/10" disabled={isCompleted}>
                             <PlusCircle className="mr-2 h-5 w-5" /> Buat {isScreenplay ? 'Bagian' : 'Bab'} Pertama
                         </Button>
