@@ -136,28 +136,24 @@ export default function ReadPage() {
         const trimmed = line.trim();
         if (!trimmed) return <div key={idx} className="h-6" />;
 
-        // 1. Scene Heading (INT. / EXT. / Slugline)
         if (trimmed.startsWith('INT.') || trimmed.startsWith('EXT.') || (trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !trimmed.includes(':') && !trimmed.startsWith('(') && !trimmed.includes(' - '))) {
             return <p key={idx} className="uppercase font-black mt-10 mb-4 tracking-tight border-b-2 border-primary/10 pb-1">{trimmed}</p>;
         }
 
-        // 2. Transition (CUT TO:, FADE IN:, etc - Right Aligned)
         if (trimmed === trimmed.toUpperCase() && (trimmed.endsWith(':') || trimmed.startsWith('FADE '))) {
             return <p key={idx} className="uppercase text-right mt-8 mb-8 font-black text-primary/60">{trimmed}</p>;
         }
 
-        // 3. Parenthetical (beat), (pointing to door)
         if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
             return <p key={idx} className="italic text-center max-w-[60%] mx-auto mb-1 leading-none opacity-80">{trimmed}</p>;
         }
 
-        // 4. Character Name (Centered-ish)
         if (trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed)) {
             return <p key={idx} className="uppercase font-black text-center mt-8 mb-1 tracking-widest text-primary">{trimmed}</p>;
         }
 
-        // 5. Dialogue (Narrower block in the middle)
-        const prevLine = idx > 0 ? text.split('\n')[idx-1].trim() : "";
+        const linesArray = text.split('\n');
+        const prevLine = idx > 0 ? linesArray[idx-1].trim() : "";
         const isLikelyDialogue = (prevLine === prevLine.toUpperCase() && prevLine !== "") || (prevLine.startsWith('(') && prevLine.endsWith(')'));
         
         if (isLikelyDialogue) {
@@ -168,7 +164,6 @@ export default function ReadPage() {
             );
         }
 
-        // 6. Action lines (Standard block)
         return <p key={idx} className="mb-4 leading-relaxed">{trimmed}</p>;
     });
   };
@@ -482,7 +477,6 @@ export default function ReadPage() {
       </div>
       
       <style jsx global>{`
-        /* Drop Cap Styling - Standard Books Only */
         article:not(.screenplay-mode) .markdown-content p:first-of-type::first-letter {
             font-size: 4rem;
             line-height: 1;
