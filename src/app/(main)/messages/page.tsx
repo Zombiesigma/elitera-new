@@ -17,16 +17,13 @@ import {
   Send, 
   Search, 
   ArrowLeft, 
-  ChevronRight, 
   Sparkles, 
   Zap, 
   Plus, 
   Info, 
   Clapperboard, 
   Play, 
-  Camera, 
   Mic, 
-  Square, 
   Trash2, 
   Image as ImageIcon, 
   Reply, 
@@ -34,13 +31,7 @@ import {
   MoreVertical,
   Download,
   Copy,
-  ExternalLink,
-  Video,
-  Phone,
-  VideoOff,
-  Video as VideoIcon,
-  ExternalLink as ExternalIcon,
-  AlertTriangle
+  ExternalLink
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -56,15 +47,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
-import type { Chat, ChatMessage, User as AppUser, VideoCallMessage } from '@/lib/types';
+import type { Chat, ChatMessage, User as AppUser } from '@/lib/types';
 import { isSameDay, format, isToday, isYesterday } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { uploadFile, uploadAudio } from '@/lib/uploader';
 import { useToast } from '@/hooks/use-toast';
-
-const WHEREBY_ROOM_URL = "https://litera.whereby.com/eliteraaff33754-4c91-42b7-866b-1f3db39488c8";
 
 export default function MessagesPage() {
   const firestore = useFirestore();
@@ -80,8 +69,6 @@ export default function MessagesPage() {
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [viewportHeight, setViewportHeight] = useState('100%');
-  const [isVideoCallActive, setIsVideoCallActive] = useState(false);
-  const [activeCallId, setActiveCallId] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -184,39 +171,6 @@ export default function MessagesPage() {
   
   const selectedChat = useMemo(() => chatThreads?.find(chat => chat.id === selectedChatId), [chatThreads, selectedChatId]);
 
-  // Handle auto-start call when answering from notification
-  useEffect(() => {
-    const autoCall = searchParams.get('autoCall');
-    if (autoCall === 'true' && selectedChat && selectedChat.lastMessage?.type === 'video_call' && selectedChat.lastMessage?.status === 'active') {
-        const callMessageId = selectedChat.lastMessage.messageId;
-        if (callMessageId) {
-            setActiveCallId(callMessageId);
-            setIsVideoCallActive(true);
-            
-            // Clean up URL param to avoid re-triggering
-            const newParams = new URLSearchParams(searchParams.toString());
-            newParams.delete('autoCall');
-            const newUrl = `${window.location.pathname}?${newParams.toString()}`;
-            window.history.replaceState(null, '', newUrl);
-        }
-    }
-  }, [searchParams, selectedChat]);
-
-  // Sync end call status real-time
-  useEffect(() => {
-    if (!activeCallId || !messages) return;
-    const currentCallMessage = messages.find(m => m.id === activeCallId) as VideoCallMessage | undefined;
-    
-    if (currentCallMessage?.status === 'ended' && isVideoCallActive) {
-        setIsVideoCallActive(false);
-        setActiveCallId(null);
-        toast({
-            title: "Panggilan Berakhir",
-            description: "Sesi video call telah selesai.",
-        });
-    }
-  }, [messages, activeCallId, isVideoCallActive, toast]);
-
   const messageGroups = useMemo(() => {
     if (!messages) return [];
     type MessageGroupItem = ChatMessage | { type: 'date_marker', id: string, date: Date };
@@ -263,7 +217,7 @@ export default function MessagesPage() {
     if (!newMessage.trim() || !currentUser || !selectedChatId || !firestore || !otherParticipant) return;
     const textToSend = newMessage.trim();
     const replyData = replyingTo ? {
-        text: replyingTo.type === 'text' ? replyingTo.text : replyingTo.type === 'image' ? '📷 Gambar' : replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : replyingTo.type === 'video_call' ? '📞 Video Call' : '📦 Konten Shared',
+        text: replyingTo.type === 'text' ? replyingTo.text : replyingTo.type === 'image' ? '📷 Gambar' : replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : '📦 Konten Shared',
         senderName: replyingTo.senderId === currentUser.uid ? 'Anda' : otherParticipant.displayName,
         type: replyingTo.type
     } : null;
@@ -289,80 +243,6 @@ export default function MessagesPage() {
       setNewMessage(textToSend);
     } finally {
       setIsSending(false);
-    }
-  };
-
-  const handleStartVideoCall = async () => {
-    if (!selectedChatId) {
-        toast({ variant: 'destructive', title: "Gagal", description: "Pilih obrolan terlebih dahulu." });
-        return;
-    }
-    if (!otherParticipant) {
-        toast({ variant: 'destructive', title: "Gagal", description: "Profil rekan bicara belum siap." });
-        return;
-    }
-    if (!firestore || !currentUser) return;
-    
-    setIsVideoCallActive(true);
-    
-    try {
-      const batch = writeBatch(firestore);
-      const messagesCol = collection(firestore, 'chats', selectedChatId, 'messages');
-      const newMessageRef = doc(messagesCol);
-      
-      const callData = {
-        type: 'video_call' as const,
-        senderId: currentUser.uid,
-        createdAt: serverTimestamp(),
-        roomUrl: WHEREBY_ROOM_URL,
-        callerName: currentUser.displayName || 'Seorang Pujangga',
-        status: 'active' as const,
-      };
-
-      batch.set(newMessageRef, callData);
-      
-      batch.update(doc(firestore, 'chats', selectedChatId), {
-        lastMessage: { 
-          text: `📞 Memanggil Video Call`, 
-          senderId: currentUser.uid, 
-          timestamp: serverTimestamp(),
-          type: 'video_call',
-          messageId: newMessageRef.id,
-          status: 'active' as const
-        },
-        [`unreadCounts.${otherParticipant.uid}`]: increment(1)
-      });
-
-      await batch.commit();
-      setActiveCallId(newMessageRef.id);
-      
-      toast({
-        title: "Menghubungkan...",
-        description: "Membuka ruang diskusi tatap muka.",
-      });
-    } catch (error) {
-      console.error("Error starting call:", error);
-      toast({ variant: 'destructive', title: "Gagal Menelpon" });
-    }
-  };
-
-  const endCallFirestore = async () => {
-    if (!activeCallId || !selectedChatId || !firestore || !currentUser) return;
-    try {
-        const batch = writeBatch(firestore);
-        const callDocRef = doc(firestore, 'chats', selectedChatId, 'messages', activeCallId);
-        batch.update(callDocRef, { status: 'ended' });
-        
-        const chatDocRef = doc(firestore, 'chats', selectedChatId);
-        batch.update(chatDocRef, {
-            'lastMessage.status': 'ended',
-            'lastMessage.text': '📞 Video Call Selesai'
-        });
-
-        await batch.commit();
-        setActiveCallId(null);
-    } catch (e) {
-        console.error("Failed to end call in DB", e);
     }
   };
 
@@ -469,18 +349,6 @@ export default function MessagesPage() {
   const handleCopyLink = (url: string) => {
     navigator.clipboard.writeText(url);
     toast({ variant: 'success', title: "Tautan Disalin", description: "Tautan gambar telah disimpan ke clipboard Anda." });
-  };
-
-  const constructWherebyEmbedUrl = () => {
-    const params = new URLSearchParams({
-        embed: 'true',
-        displayName: currentUser?.displayName || 'Pujangga Elitera',
-        avatarUrl: currentUser?.photoURL || '',
-        roomIntegrations: 'off',
-        bottomToolbar: 'on',
-        background: 'off'
-    });
-    return `${WHEREBY_ROOM_URL}?${params.toString()}`;
   };
 
   return (
@@ -667,17 +535,6 @@ export default function MessagesPage() {
                 </div>
                 
                 <div className="flex items-center gap-1 relative z-10">
-                    <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="rounded-full text-primary hover:bg-primary/10 h-10 w-10 active:scale-90 transition-transform bg-primary/5 shadow-sm" 
-                        onClick={(e) => {
-                            e.preventDefault();
-                            handleStartVideoCall();
-                        }}
-                    >
-                        <VideoIcon className="h-5 w-5" />
-                    </Button>
                     <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary h-10 w-10">
                         <Info className="h-5 w-5" />
                     </Button>
@@ -724,10 +581,6 @@ export default function MessagesPage() {
                                     otherParticipant={otherParticipant}
                                     onSwipe={() => setReplyingTo(msg)}
                                     onImageClick={(url) => setPreviewImage(url)}
-                                    onJoinCall={() => {
-                                        setActiveCallId(msg.id);
-                                        setIsVideoCallActive(true);
-                                    }}
                                 />
                             );
                             })}
@@ -756,8 +609,7 @@ export default function MessagesPage() {
                                     <p className="text-xs text-muted-foreground truncate italic mt-0.5">
                                         {replyingTo.type === 'text' ? replyingTo.text : 
                                          replyingTo.type === 'image' ? '📷 Gambar' : 
-                                         replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : 
-                                         replyingTo.type === 'video_call' ? '📞 Video Call' : '📦 Konten Shared'}
+                                         replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : '📦 Konten Shared'}
                                     </p>
                                 </div>
                                 <Button 
@@ -926,73 +778,11 @@ export default function MessagesPage() {
             </div>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={isVideoCallActive} onOpenChange={(open) => {
-          if (!open) endCallFirestore();
-          setIsVideoCallActive(open);
-      }}>
-        <DialogContent 
-            className="max-w-none w-screen h-[100dvh] p-0 border-0 m-0 bg-zinc-950 overflow-hidden flex flex-col z-[400] rounded-none"
-            onCloseAutoFocus={(e) => {
-                e.preventDefault();
-                document.body.style.pointerEvents = 'auto';
-            }}
-        >
-            <DialogHeader className="sr-only">
-                <DialogTitle>Video Call Elitera</DialogTitle>
-                <DialogDescription>Diskusi tatap muka dengan pujangga lain.</DialogDescription>
-            </DialogHeader>
-            
-            <div className="absolute top-6 left-6 z-[410] flex items-center gap-4">
-                <Button 
-                    variant="destructive" 
-                    size="icon" 
-                    className="rounded-full h-12 w-12 shadow-2xl active:scale-90 transition-transform" 
-                    onClick={() => {
-                        endCallFirestore();
-                        setIsVideoCallActive(false);
-                    }}
-                >
-                    <Phone className="h-6 w-6 rotate-[135deg]" />
-                </Button>
-                <div className="bg-black/40 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 flex items-center gap-3">
-                    <div className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
-                    <span className="text-xs font-black text-white uppercase tracking-widest">Live: {otherParticipant?.displayName}</span>
-                </div>
-            </div>
-
-            <div className="flex-1 w-full h-full relative group">
-                <iframe
-                    src={constructWherebyEmbedUrl()}
-                    allow="camera; microphone; fullscreen; speaker; display-capture; autoplay"
-                    className="w-full h-full border-0"
-                />
-                
-                {/* Fallback UI if iframe is blocked */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-0 pointer-events-none group-has-[iframe]:hidden">
-                    <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 text-center max-w-sm space-y-6">
-                        <div className="mx-auto bg-rose-500/10 p-4 rounded-2xl w-fit">
-                            <AlertTriangle className="h-10 w-10 text-rose-500" />
-                        </div>
-                        <div className="space-y-2">
-                            <h3 className="font-headline text-xl font-bold text-white">Iframe Terblokir</h3>
-                            <p className="text-sm text-zinc-400 leading-relaxed">Penyedia layanan membatasi akses video di dalam aplikasi. Gunakan tombol di bawah untuk melanjutkan.</p>
-                        </div>
-                        <Button asChild className="w-full h-12 rounded-xl font-black bg-primary text-white shadow-xl pointer-events-auto">
-                            <a href={WHEREBY_ROOM_URL} target="_blank" rel="noopener noreferrer">
-                                <ExternalIcon className="mr-2 h-4 w-4" /> Buka di Jendela Baru
-                            </a>
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
 
-function MessageBubble({ msg, isSender, otherParticipant, onSwipe, onImageClick, onJoinCall }: { msg: ChatMessage, isSender: boolean, otherParticipant?: any, onSwipe: () => void, onImageClick: (url: string) => void, onJoinCall: () => void }) {
+function MessageBubble({ msg, isSender, otherParticipant, onSwipe, onImageClick }: { msg: ChatMessage, isSender: boolean, otherParticipant?: any, onSwipe: () => void, onImageClick: (url: string) => void }) {
     const x = useMotionValue(0);
     const opacity = useTransform(x, [0, 60], [0, 1]);
     const scale = useTransform(x, [0, 60], [0.5, 1]);
@@ -1078,41 +868,6 @@ function MessageBubble({ msg, isSender, otherParticipant, onSwipe, onImageClick,
                                         )} 
                                     />
                                 </div>
-                            </div>
-                        )}
-                        {msg.type === 'video_call' && (
-                            <div className={cn(
-                                "flex flex-col gap-4 p-6 min-w-[220px] sm:min-w-[280px]",
-                                isSender ? "bg-white/5" : "bg-muted/20"
-                            )}>
-                                <div className="flex items-center gap-4">
-                                    <div className={cn(
-                                        "h-12 w-12 rounded-2xl flex items-center justify-center text-white shadow-lg",
-                                        msg.status === 'active' ? "bg-rose-500 shadow-rose-500/20" : "bg-muted text-muted-foreground shadow-none"
-                                    )}>
-                                        <VideoIcon className="h-6 w-6" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Video Call Elitera</p>
-                                        <p className="text-sm font-bold truncate">{msg.status === 'active' ? (isSender ? 'Panggilan Anda' : `Panggilan dari ${msg.callerName}`) : 'Panggilan Selesai'}</p>
-                                    </div>
-                                </div>
-                                {msg.status === 'active' ? (
-                                    <Button 
-                                        variant="default" 
-                                        className={cn(
-                                            "w-full h-11 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-[0.98]",
-                                            isSender ? "bg-white text-primary hover:bg-zinc-100" : "bg-primary text-white hover:bg-primary/90"
-                                        )}
-                                        onClick={onJoinCall}
-                                    >
-                                        <Sparkles className="mr-2 h-4 w-4" /> Gabung Video Call
-                                    </Button>
-                                ) : (
-                                    <div className="w-full h-11 rounded-xl bg-black/10 border-2 border-dashed flex items-center justify-center opacity-50">
-                                        <span className="text-[10px] font-black uppercase tracking-widest">Selesai</span>
-                                    </div>
-                                )}
                             </div>
                         )}
                         {msg.type === 'book_share' && (
