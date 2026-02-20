@@ -1,4 +1,3 @@
-
 'use client';
 
 import Image from 'next/image';
@@ -208,7 +207,7 @@ export default function BookDetailsClient() {
     const shareData = {
       title: book.title,
       text: `Lihat ${book.type === 'screenplay' ? 'naskah' : 'buku'} "${book.title}" oleh ${book.authorName} di Elitera!`,
-      url: window.location.href,
+      url: typeof window !== 'undefined' ? window.location.href : '',
     };
 
     if (navigator.share) {
@@ -317,13 +316,11 @@ export default function BookDetailsClient() {
                             <Clapperboard className="h-3 w-3" /> Naskah Film
                         </Badge>
                     )}
-                    <Badge variant={book.isCompleted ? "default" : "outline"} className={cn(
-                        "px-3 py-1 gap-1.5",
-                        book.isCompleted ? "bg-emerald-500 hover:bg-emerald-600 text-white border-none" : "border-primary/30 text-primary bg-primary/5"
-                    )}>
-                        {book.isCompleted ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                        {book.isCompleted ? 'Tamat' : 'Berlanjut'}
-                    </Badge>
+                    {book.isCompleted && (
+                        <Badge variant="default" className="px-3 py-1 gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white border-none shadow-sm">
+                            <CheckCircle2 className="h-3 w-3" /> Tamat
+                        </Badge>
+                    )}
                     {book.visibility === 'followers_only' ? (
                         <Badge variant="outline" className="px-3 py-1 gap-1.5 border-accent/30 text-accent bg-accent/5">
                             <Users className="h-3 w-3" /> Hanya Pengikut
