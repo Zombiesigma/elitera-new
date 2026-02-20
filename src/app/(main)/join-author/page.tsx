@@ -194,11 +194,9 @@ export default function JoinAuthorPage() {
     if (applicationStatus === 'author') {
          return (
             <div className="space-y-12 md:space-y-20 pb-20 relative overflow-x-hidden w-full">
-                {/* Background Decorations */}
                 <div className="absolute top-[-50px] left-[-50px] w-64 md:w-96 h-64 md:h-96 bg-primary/5 rounded-full blur-[80px] md:blur-[120px] -z-10 pointer-events-none" />
                 <div className="absolute bottom-20 right-[-30px] w-64 md:w-80 h-64 md:h-80 bg-accent/5 rounded-full blur-[80px] md:blur-[100px] -z-10 pointer-events-none" />
 
-                {/* Hero Section */}
                 <div className="text-center space-y-6 max-w-3xl mx-auto pt-4 px-4">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -209,7 +207,7 @@ export default function JoinAuthorPage() {
                             <Sparkles className="h-3 w-3 md:h-3.5 md:w-3.5" /> Jajaran Penulis Elitera
                         </div>
                         <h1 className="text-3xl md:text-6xl font-headline font-black text-foreground tracking-tight leading-tight">
-                            Temui Para <span className="text-primary italic underline decoration-primary/20">Penulis</span> Kalcer
+                            Temui Para <span className="text-primary italic underline decoration-primary/20 underline-offset-8">Penulis</span> Kalcer
                         </h1>
                         <p className="mt-4 md:mt-6 text-sm md:text-lg text-muted-foreground leading-relaxed font-medium italic">
                             "Mereka adalah arsitek imajinasi yang membangun dunia lewat kata-kata. Jelajahi, ikuti, dan biarkan inspirasi mereka mengalir ke dalam harimu."
@@ -217,7 +215,6 @@ export default function JoinAuthorPage() {
                     </motion.div>
                 </div>
 
-                {/* Ranking Section: Horizontal Scroll */}
                 <section className="space-y-8">
                     <div className="flex items-center justify-between px-4 md:px-6">
                         <div className="flex items-center gap-3">
@@ -491,7 +488,6 @@ export default function JoinAuthorPage() {
   return (
     <div className="max-w-5xl mx-auto py-8 md:py-12 px-4 overflow-x-hidden w-full">
       <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 items-start">
-        {/* Left Side: Info */}
         <div className="lg:col-span-5 space-y-8 md:space-y-10">
             <div className="space-y-4 md:space-y-6">
                 <motion.div
@@ -502,7 +498,7 @@ export default function JoinAuthorPage() {
                         <PenTool className="h-3 w-3" /> Karir Penulis
                     </div>
                     <h1 className="text-3xl md:text-5xl font-headline font-black leading-tight tracking-tight text-foreground">
-                        Mulai Perjalanan <br/> <span className="text-primary italic underline decoration-primary/20">Sastramu</span> Anda
+                        Mulai Perjalanan <br/> <span className="text-primary italic underline decoration-primary/20 underline-offset-8">Sastramu</span> Anda
                     </h1>
                     <p className="mt-4 md:mt-6 text-base md:text-lg text-muted-foreground leading-relaxed font-medium">
                         Bergabunglah dengan komunitas pujangga modern dan mulai bagikan dunia imajinasi Anda kepada pembaca global di Elitera.
@@ -535,7 +531,6 @@ export default function JoinAuthorPage() {
             </div>
         </div>
 
-        {/* Right Side: Form */}
         <div className="lg:col-span-7">
             <motion.div 
                 initial={{ opacity: 0, y: 20 }}
