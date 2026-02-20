@@ -905,7 +905,7 @@ function MessageBubble({ msg, isSender, otherParticipant, onSwipe, onImageClick 
                                         <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary shrink-0">
                                             <Clapperboard className="h-5 w-5" />
                                         </div>
-                                        <div className="min-w-0">
+                                        <div className="min-0">
                                             <p className={cn("text-[10px] font-black uppercase tracking-widest", isSender ? "text-white/60" : "text-primary")}>Video Reels</p>
                                             <p className="text-xs font-bold truncate opacity-80">@{msg.reel.authorName.toLowerCase()}</p>
                                         </div>
