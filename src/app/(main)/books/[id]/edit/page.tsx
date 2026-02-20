@@ -583,7 +583,7 @@ export default function EditBookPage() {
                                             {previewUrl ? <Image src={previewUrl} alt="Preview" fill className="object-cover transition-transform duration-500 group-hover:scale-110" /> : <FileImage className="h-12 w-12 text-muted-foreground/40" />}
                                             <div className="absolute inset-0 bg-primary/60 backdrop-blur-sm opacity-0 group-hover:opacity-10 flex flex-col items-center justify-center transition-opacity duration-300"><Upload className="h-8 w-8 text-white mb-2" /><span className="text-xs font-bold text-white uppercase tracking-wider">Ganti Sampul</span></div>
                                         </div>
-                                        <input id="edit-cover-upload" type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                                        <input id="edit-cover-upload" type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
                                     </div>
                                     <div className="md:col-span-8 space-y-6">
                                         <FormField 
