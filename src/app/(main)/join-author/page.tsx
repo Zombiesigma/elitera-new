@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
 import { collection, serverTimestamp, doc, writeBatch, getDocs, query, where, orderBy } from 'firebase/firestore';
-import type { AuthorRequest, User as AppUser } from '@/lib/types';
+import type { AuthorRequest, User as AppUser, Book } from '@/lib/types';
 import {
   Card,
   CardContent,
@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { BookUser, Loader2, Send, Info, Users, BookOpen, Star, Sparkles, ChevronRight, PenTool, CheckCircle2, Clock, ShieldCheck, ClipboardCheck, ArrowRight } from "lucide-react";
+import { BookUser, Loader2, Send, Info, Users, BookOpen, Star, Sparkles, ChevronRight, PenTool, CheckCircle2, Clock, Trophy, Crown, Medal, ArrowRight } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,10 +65,24 @@ export default function JoinAuthorPage() {
         (firestore && user) ? query(collection(firestore, 'users'), orderBy('displayName', 'asc')) : null
     ), [firestore, user]);
     const { data: allUsers, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
+
+    const booksQuery = useMemo(() => (
+        (firestore) ? query(collection(firestore, 'books'), where('status', '==', 'published')) : null
+    ), [firestore]);
+    const { data: allPublishedBooks, isLoading: areBooksLoading } = useCollection<Book>(booksQuery);
     
-    const authors = useMemo(() => (
-      allUsers?.filter(u => u.role === 'penulis' || u.role === 'admin')
-    ), [allUsers]);
+    const authorsWithStats = useMemo(() => {
+      if (!allUsers || !allPublishedBooks) return [];
+      
+      const authors = allUsers.filter(u => u.role === 'penulis' || u.role === 'admin');
+      
+      return authors.map(author => {
+          const bookCount = allPublishedBooks.filter(b => b.authorId === author.uid).length;
+          return { ...author, bookCount };
+      }).sort((a, b) => b.bookCount - a.bookCount || b.followers - a.followers);
+    }, [allUsers, allPublishedBooks]);
+
+    const topAuthors = useMemo(() => authorsWithStats.slice(0, 10), [authorsWithStats]);
 
     useEffect(() => {
       if (isUserLoading || isProfileLoading || areRequestsLoading) {
@@ -179,7 +193,7 @@ export default function JoinAuthorPage() {
 
     if (applicationStatus === 'author') {
          return (
-            <div className="space-y-12 md:space-y-16 pb-20 relative overflow-x-hidden w-full">
+            <div className="space-y-12 md:space-y-20 pb-20 relative overflow-x-hidden w-full">
                 {/* Background Decorations */}
                 <div className="absolute top-[-50px] left-[-50px] w-64 md:w-96 h-64 md:h-96 bg-primary/5 rounded-full blur-[80px] md:blur-[120px] -z-10 pointer-events-none" />
                 <div className="absolute bottom-20 right-[-30px] w-64 md:w-80 h-64 md:h-80 bg-accent/5 rounded-full blur-[80px] md:blur-[100px] -z-10 pointer-events-none" />
@@ -203,128 +217,196 @@ export default function JoinAuthorPage() {
                     </motion.div>
                 </div>
 
-                {areUsersLoading ? (
-                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 px-4">
-                        {Array.from({length: 6}).map((_, i) => (
-                             <Card key={i} className="overflow-hidden rounded-[2rem] md:rounded-[2.5rem] border-none shadow-xl bg-card/50">
-                                <Skeleton className="h-24 md:h-32 w-full bg-muted/50" />
-                                <div className="p-6 md:p-8 pt-0 -mt-12 md:-mt-16 text-center flex flex-col items-center">
-                                    <Skeleton className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-background mb-4 shadow-2xl"/>
-                                    <Skeleton className="h-6 w-3/4 mb-2 rounded-full"/>
-                                    <Skeleton className="h-4 w-1/2 rounded-full"/>
-                                    <div className="grid grid-cols-2 gap-4 w-full mt-8 md:mt-10">
-                                        <Skeleton className="h-10 md:h-12 rounded-xl md:rounded-2xl"/>
-                                        <Skeleton className="h-10 md:h-12 rounded-xl md:rounded-2xl"/>
-                                    </div>
-                                </div>
-                            </Card>
-                        ))}
+                {/* Ranking Section: Horizontal Scroll */}
+                <section className="space-y-8">
+                    <div className="flex items-center justify-between px-4 md:px-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-yellow-500/10 text-yellow-600">
+                                <Trophy className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg md:text-xl font-headline font-black tracking-tight">Pujangga Terproduktif</h2>
+                                <p className="text-[9px] md:text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Berdasarkan jumlah mahakarya terbit</p>
+                            </div>
+                        </div>
                     </div>
-                ) : (
-                    <motion.div 
-                        initial="hidden"
-                        animate="show"
-                        variants={{
-                            show: { transition: { staggerChildren: 0.1 } }
-                        }}
-                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 px-4"
-                    >
-                        {authors?.map((author) => (
-                            <motion.div
-                                key={author.id}
-                                variants={{
-                                    hidden: { opacity: 0, y: 20, scale: 0.98 },
-                                    show: { opacity: 1, y: 0, scale: 1 }
-                                }}
+
+                    <div className="flex items-stretch gap-4 md:gap-6 overflow-x-auto no-scrollbar px-4 md:px-6 pb-4">
+                        {(areUsersLoading || areBooksLoading) ? (
+                            Array.from({ length: 5 }).map((_, i) => (
+                                <Skeleton key={i} className="h-48 w-40 md:w-48 rounded-[2rem] flex-shrink-0" />
+                            ))
+                        ) : topAuthors.map((author, idx) => (
+                            <motion.div 
+                                key={author.id} 
+                                initial={{ opacity: 0, scale: 0.9 }} 
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: idx * 0.05 }}
+                                className="flex-shrink-0"
                             >
-                                <Link href={`/profile/${author.username}`} className="block group h-full">
+                                <Link href={`/profile/${author.username.toLowerCase()}`}>
                                     <Card className={cn(
-                                        "relative overflow-hidden rounded-[2.5rem] md:rounded-[3rem] border-none transition-all duration-500 h-full shadow-lg hover:shadow-2xl group-hover:-translate-y-1 bg-card/50 backdrop-blur-xl border border-white/10",
-                                        author.uid === user?.uid && "ring-2 ring-primary/20"
+                                        "w-40 md:w-48 h-full border-none shadow-lg rounded-[2rem] md:rounded-[2.5rem] relative overflow-hidden transition-all hover:shadow-2xl hover:-translate-y-1 group bg-card/50 backdrop-blur-xl",
+                                        idx === 0 ? "ring-2 ring-yellow-500/30" : idx === 1 ? "ring-2 ring-zinc-400/30" : idx === 2 ? "ring-2 ring-orange-400/30" : ""
                                     )}>
-                                        {/* Dynamic Header Gradient */}
-                                        <div className="absolute top-0 left-0 w-full h-28 md:h-36 bg-gradient-to-br from-primary/20 via-accent/10 to-transparent group-hover:h-32 md:group-hover:h-44 transition-all duration-700" />
+                                        <div className={cn(
+                                            "absolute top-0 left-0 right-0 h-16 md:h-20 opacity-20 group-hover:h-20 md:group-hover:h-24 transition-all duration-500",
+                                            idx === 0 ? "bg-yellow-500" : idx === 1 ? "bg-zinc-400" : idx === 2 ? "bg-orange-400" : "bg-primary"
+                                        )} />
                                         
-                                        <CardContent className="relative z-10 p-6 md:p-8 pt-10 md:pt-12 text-center flex flex-col items-center h-full">
-                                            <div className="relative mb-6 md:mb-8">
-                                                <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl scale-125 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                                                
-                                                <Avatar className="w-24 h-24 md:w-36 md:h-36 border-4 border-background shadow-2xl transition-all duration-700 group-hover:scale-105 group-active:scale-95 ring-1 ring-border/50">
-                                                    <AvatarImage src={author.photoURL} alt={author.displayName} className="object-cover" />
-                                                    <AvatarFallback className="text-2xl md:text-4xl font-black bg-primary/5 text-primary italic">
-                                                        {author.displayName.charAt(0)}
-                                                    </AvatarFallback>
+                                        <CardContent className="pt-8 md:pt-10 p-4 md:p-6 text-center flex flex-col items-center relative z-10">
+                                            <div className="relative mb-4">
+                                                <Avatar className="h-16 w-16 md:h-20 md:w-20 border-4 border-background shadow-xl">
+                                                    <AvatarImage src={author.photoURL} className="object-cover" />
+                                                    <AvatarFallback className="bg-primary/5 text-primary font-black">{author.displayName.charAt(0)}</AvatarFallback>
                                                 </Avatar>
-                                                
-                                                <div className="absolute -bottom-1 -right-1 bg-primary text-white p-1.5 md:p-2.5 rounded-full shadow-xl ring-2 md:ring-4 ring-background z-20">
-                                                    <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5" />
-                                                </div>
-                                                
-                                                {author.status === 'online' && (
-                                                    <span className="absolute top-1 right-1 md:top-2 md:right-2 block h-3 w-3 md:h-5 md:w-5 rounded-full bg-green-500 border-2 md:border-4 border-background shadow-lg z-20 animate-pulse" />
-                                                )}
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <h3 className="font-headline text-2xl md:text-3xl font-black text-foreground group-hover:text-primary transition-colors duration-300 tracking-tight">{author.displayName}</h3>
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <p className="text-[9px] md:text-[10px] font-black text-muted-foreground/60 tracking-widest uppercase">@{author.username}</p>
-                                                    {author.uid === user?.uid && (
-                                                        <span className="bg-primary/10 text-primary text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">Anda</span>
-                                                    )}
+                                                <div className={cn(
+                                                    "absolute -top-2 -right-2 p-1.5 rounded-full shadow-lg border-2 border-background flex items-center justify-center",
+                                                    idx === 0 ? "bg-yellow-500 text-white" : idx === 1 ? "bg-zinc-400 text-white" : idx === 2 ? "bg-orange-400 text-white" : "bg-muted text-muted-foreground"
+                                                )}>
+                                                    {idx === 0 ? <Crown className="h-3 w-3 md:h-4 md:w-4" /> : <span className="text-[8px] md:text-[10px] font-black px-1">#{idx + 1}</span>}
                                                 </div>
                                             </div>
                                             
-                                            <div className="my-6 md:my-8 w-12 h-1 bg-primary/10 rounded-full group-hover:w-24 transition-all duration-700 ease-out" />
+                                            <div className="space-y-0.5">
+                                                <p className="font-black text-xs md:text-sm truncate max-w-[120px] group-hover:text-primary transition-colors">{author.displayName}</p>
+                                                <p className="text-[8px] md:text-[9px] font-bold text-muted-foreground uppercase tracking-widest">@{author.username}</p>
+                                            </div>
 
-                                            <p className="text-xs md:text-base text-muted-foreground/80 leading-relaxed italic line-clamp-3 mb-8 px-2 md:px-4 font-medium min-h-[3rem] md:min-h-[4.5rem]">
-                                                {author.bio || `Seorang penjelajah kata di Elitera yang percaya bahwa setiap cerita memiliki keajaibannya sendiri.`}
-                                            </p>
-                                            
-                                            <div className="mt-auto pt-6 md:pt-8 border-t border-border/50 grid grid-cols-2 gap-6 md:gap-10 w-full relative">
-                                                <div className="text-center space-y-1">
-                                                    <p className="font-black text-lg md:text-2xl text-primary tracking-tighter">{new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(author.followers)}</p>
-                                                    <div className="flex items-center justify-center gap-1 text-[8px] md:text-[9px] uppercase font-black tracking-widest text-muted-foreground opacity-50">
-                                                        <Users className="h-2.5 w-2.5 md:h-3 md:w-3" /> Pengikut
-                                                    </div>
+                                            <div className="mt-4 pt-4 border-t border-border/50 w-full">
+                                                <div className="flex items-center justify-center gap-1.5 text-primary">
+                                                    <BookOpen className="h-3 w-3" />
+                                                    <span className="font-black text-sm md:text-base tracking-tighter">{author.bookCount}</span>
+                                                    <span className="text-[8px] font-bold uppercase tracking-widest opacity-60">Karya</span>
                                                 </div>
-                                                <div className="text-center space-y-1">
-                                                    <p className="font-black text-lg md:text-2xl text-accent tracking-tighter">{author.following}</p>
-                                                    <div className="flex items-center justify-center gap-1 text-[8px] md:text-[9px] uppercase font-black tracking-widest text-muted-foreground opacity-50">
-                                                        <BookOpen className="h-2.5 w-2.5 md:h-3 md:w-3" /> Mengikuti
-                                                    </div>
-                                                </div>
-                                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-6 md:h-8 w-px bg-border/50 mt-3 md:mt-4" />
                                             </div>
                                         </CardContent>
-                                        
-                                        <div className="absolute bottom-4 right-6 md:bottom-6 md:right-10 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-x-2 group-hover:translate-x-0 flex items-center gap-1.5">
-                                            <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-primary/60">Lihat Profil</span>
-                                            <ChevronRight className="h-4 w-4 md:h-5 md:w-5 text-primary/40" />
-                                        </div>
                                     </Card>
                                 </Link>
                             </motion.div>
                         ))}
-                    </motion.div>
-                )}
+                    </div>
+                </section>
+
+                <div className="px-4 md:px-6">
+                    <div className="flex items-center gap-4 mb-10">
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/60 flex items-center gap-3 whitespace-nowrap">
+                            <Users className="h-4 w-4 text-primary" /> Direktori Pujangga
+                        </h2>
+                        <div className="h-px bg-border/50 flex-1" />
+                    </div>
+
+                    {areUsersLoading ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                            {Array.from({length: 6}).map((_, i) => (
+                                <Skeleton key={i} className="h-80 w-full rounded-[2.5rem]" />
+                            ))}
+                        </div>
+                    ) : (
+                        <motion.div 
+                            initial="hidden"
+                            animate="show"
+                            variants={{
+                                show: { transition: { staggerChildren: 0.1 } }
+                            }}
+                            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
+                        >
+                            {authorsWithStats.map((author) => (
+                                <motion.div
+                                    key={author.id}
+                                    variants={{
+                                        hidden: { opacity: 0, y: 20 },
+                                        show: { opacity: 1, y: 0 }
+                                    }}
+                                >
+                                    <Link href={`/profile/${author.username.toLowerCase()}`} className="block group h-full">
+                                        <Card className={cn(
+                                            "relative overflow-hidden rounded-[2.5rem] md:rounded-[3rem] border-none transition-all duration-500 h-full shadow-lg hover:shadow-2xl group-hover:-translate-y-1 bg-card/50 backdrop-blur-xl border border-white/10",
+                                            author.uid === user?.uid && "ring-2 ring-primary/20"
+                                        )}>
+                                            <div className="absolute top-0 left-0 w-full h-28 md:h-36 bg-gradient-to-br from-primary/20 via-accent/10 to-transparent group-hover:h-32 md:group-hover:h-44 transition-all duration-700" />
+                                            
+                                            <CardContent className="relative z-10 p-6 md:p-8 pt-10 md:pt-12 text-center flex flex-col items-center h-full">
+                                                <div className="relative mb-6 md:mb-8">
+                                                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl scale-125 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                                                    
+                                                    <Avatar className="w-24 h-24 md:w-36 md:h-36 border-4 border-background shadow-2xl transition-all duration-700 group-hover:scale-105 group-active:scale-95 ring-1 ring-border/50">
+                                                        <AvatarImage src={author.photoURL} alt={author.displayName} className="object-cover" />
+                                                        <AvatarFallback className="text-2xl md:text-4xl font-black bg-primary/5 text-primary italic">
+                                                            {author.displayName.charAt(0)}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    
+                                                    <div className="absolute -bottom-1 -right-1 bg-primary text-white p-1.5 md:p-2.5 rounded-full shadow-xl ring-2 md:ring-4 ring-background z-20">
+                                                        <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5" />
+                                                    </div>
+                                                    
+                                                    {author.status === 'online' && (
+                                                        <span className="absolute top-1 right-1 md:top-2 md:right-2 block h-3 w-3 md:h-5 md:w-5 rounded-full bg-green-500 border-2 md:border-4 border-background shadow-lg z-20 animate-pulse" />
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <h3 className="font-headline text-2xl md:text-3xl font-black text-foreground group-hover:text-primary transition-colors duration-300 tracking-tight">{author.displayName}</h3>
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <p className="text-[9px] md:text-[10px] font-black text-muted-foreground/60 tracking-widest uppercase">@{author.username}</p>
+                                                        {author.uid === user?.uid && (
+                                                            <span className="bg-primary/10 text-primary text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">Anda</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="my-6 md:my-8 w-12 h-1 bg-primary/10 rounded-full group-hover:w-24 transition-all duration-700 ease-out" />
+
+                                                <p className="text-xs md:text-base text-muted-foreground/80 leading-relaxed italic line-clamp-3 mb-8 px-2 md:px-4 font-medium min-h-[3rem] md:min-h-[4.5rem]">
+                                                    {author.bio || `Seorang penjelajah kata di Elitera yang percaya bahwa setiap cerita memiliki keajaibannya sendiri.`}
+                                                </p>
+                                                
+                                                <div className="mt-auto pt-6 md:pt-8 border-t border-border/50 grid grid-cols-3 gap-4 w-full relative">
+                                                    <div className="text-center space-y-1">
+                                                        <p className="font-black text-base md:text-xl text-primary tracking-tighter">{author.bookCount}</p>
+                                                        <div className="flex items-center justify-center gap-1 text-[7px] md:text-[8px] uppercase font-black tracking-widest text-muted-foreground opacity-50">
+                                                            Karya
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-center space-y-1">
+                                                        <p className="font-black text-base md:text-xl text-foreground tracking-tighter">{new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(author.followers)}</p>
+                                                        <div className="flex items-center justify-center gap-1 text-[7px] md:text-[8px] uppercase font-black tracking-widest text-muted-foreground opacity-50">
+                                                            Pengikut
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-center space-y-1">
+                                                        <p className="font-black text-base md:text-xl text-accent tracking-tighter">{author.following}</p>
+                                                        <div className="flex items-center justify-center gap-1 text-[7px] md:text-[8px] uppercase font-black tracking-widest text-muted-foreground opacity-50">
+                                                            Mengikuti
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    </Link>
+                                </motion.div>
+                            ))}
+                        </motion.div>
+                    )}
+                </div>
                 
                 {!isProfileLoading && userProfile?.role === 'pembaca' && (
                     <motion.div 
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="mt-16 md:mt-20 pt-12 md:pt-16 border-t border-border/50 text-center space-y-6 md:space-y-8 px-4"
+                        className="mt-16 md:mt-24 pt-12 md:pt-16 border-t border-border/50 text-center space-y-6 md:space-y-8 px-4"
                     >
-                        <div className="p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] bg-primary/5 border border-primary/10 max-w-xl mx-auto shadow-inner">
-                            <h4 className="text-xl md:text-2xl font-headline font-black mb-2 md:mb-3">Siap Menjadi Bagian Dari Mereka?</h4>
-                            <p className="text-muted-foreground font-medium text-xs md:text-sm leading-relaxed mb-6 md:mb-8">
-                                Bergabunglah bersama para pujangga di atas dan mulai bangun duniamu sendiri.
+                        <div className="p-8 md:p-12 rounded-[2.5rem] md:rounded-[3rem] bg-primary/5 border border-primary/10 max-w-2xl mx-auto shadow-inner">
+                            <h4 className="text-2xl md:text-3xl font-headline font-black mb-2 md:mb-3">Siap Menjadi Bagian Dari Mereka?</h4>
+                            <p className="text-muted-foreground font-medium text-sm md:text-base leading-relaxed mb-8 md:mb-10">
+                                Bergabunglah bersama para pujangga di atas dan mulai bangun duniamu sendiri. Jadilah inspirasi bagi ribuan pembaca Elitera.
                             </p>
                             <Button 
                                 onClick={() => setApplicationStatus('not_applied')}
                                 size="lg" 
-                                className="w-full sm:w-auto rounded-2xl px-10 h-14 font-black text-xs md:text-sm uppercase tracking-widest shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95"
+                                className="w-full sm:w-auto rounded-[1.25rem] px-12 h-16 font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95"
                             >
                                 Mulai Perjalanan Sekarang <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
@@ -366,7 +448,7 @@ export default function JoinAuthorPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 max-w-3xl mx-auto mt-2">
                                 {[
                                     { icon: ShieldCheck, label: "Verifikasi", status: "Selesai", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-                                    { icon: ClipboardCheck, label: "Kurasi", status: "Berlangsung", color: "text-accent", bg: "bg-accent/10", active: true },
+                                    { icon: Medal, label: "Kurasi", status: "Berlangsung", color: "text-accent", bg: "bg-accent/10", active: true },
                                     { icon: Star, label: "Keputusan", status: "Menunggu", color: "text-muted-foreground", bg: "bg-muted" },
                                 ].map((step, i) => (
                                     <div key={i} className={cn(
