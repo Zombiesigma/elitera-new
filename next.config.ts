@@ -1,7 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* Gabungkan semua config di sini */
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -9,10 +8,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
-    // Ini untuk mengatasi warning Cross-origin yang tadi
-    allowedDevOrigins: [
-      '9000-firebase-studio-1769150625444.cluster-ancjwrkgr5dvux4qug5rbzyc2y.cloudworkstations.dev'
-    ],
+    serverExternalPackages: ['pdfkit', 'pdf-parse', 'pdf-lib'],
   },
   images: {
     remotePatterns: [
