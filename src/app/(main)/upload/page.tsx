@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -6,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useFirestore, useUser, useDoc } from '@/firebase';
 import { collection, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -17,11 +17,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, AlertTriangle, BookUser, Upload, FileImage, Globe, Users, ArrowRight, PenTool, FileText, Type, File as FileIcon, Clapperboard } from "lucide-react";
+import { Loader2, Sparkles, AlertTriangle, BookUser, Upload, FileImage, Globe, Users, ArrowRight, PenTool, FileText, Type, File as FileIcon } from "lucide-react";
 import type { User as AppUser } from '@/lib/types';
-import Link from 'next/link';
 import { uploadFile, uploadBookFile } from '@/lib/uploader';
-import { ... } from '../../actions/book-processor';
+import { extractBookContent } from '@/app/actions/book-processor';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -82,7 +81,6 @@ export default function CreateBookPage() {
         return;
       }
       setBookFile(file);
-      // Auto-fill title if empty
       if (!form.getValues('title')) {
           const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
           form.setValue('title', cleanName);
@@ -121,10 +119,8 @@ export default function CreateBookPage() {
       if (creationMethod === 'upload' && bookFile) {
         setIsExtracting(true);
         try {
-          // 1. Upload to GitHub
           fileUrl = await uploadBookFile(bookFile);
           
-          // 2. Extract content
           const base64Data = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
