@@ -24,11 +24,9 @@ const technologies = [
 export default function AboutPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-20 md:space-y-32 pb-32 relative overflow-x-hidden w-full px-1">
-      {/* Decorative Background Blobs */}
       <div className="absolute top-0 right-[-10%] w-64 md:w-96 h-64 md:h-96 bg-primary/10 rounded-full blur-[80px] md:blur-[120px] -z-10 pointer-events-none animate-pulse" />
       <div className="absolute bottom-1/2 left-[-10%] w-64 md:w-96 h-64 md:h-96 bg-accent/5 rounded-full blur-[80px] md:blur-[120px] -z-10 pointer-events-none" />
       
-      {/* Hero Section */}
       <motion.section 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -54,7 +52,6 @@ export default function AboutPage() {
         </div>
       </motion.section>
 
-      {/* Philosophy Grid */}
       <section className="space-y-12">
         <div className="flex items-center gap-4 px-4">
             <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/60 flex items-center gap-3 whitespace-nowrap">
@@ -83,7 +80,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Developer Section */}
       <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="space-y-12 px-4">
         <div className="flex items-center gap-4">
             <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/60 flex items-center gap-3 whitespace-nowrap">
@@ -130,7 +126,6 @@ export default function AboutPage() {
         </Card>
       </motion.section>
 
-      {/* Technology Section */}
       <section className="space-y-16 px-4">
         <div className="text-center space-y-4">
             <h2 className="text-3xl md:text-5xl font-headline font-black tracking-tight">Kekuatan di Balik <span className="text-primary italic underline decoration-primary/10">Sistem.</span></h2>
@@ -154,7 +149,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* AI Intelligence Section */}
       <section className="px-4">
         <motion.div 
             initial={{ opacity: 0, scale: 0.95 }} 
@@ -186,7 +180,6 @@ export default function AboutPage() {
         </motion.div>
       </section>
 
-      {/* Trust Badge / Footer Tagline */}
       <div className="text-center space-y-6 opacity-40 select-none grayscale pb-16">
           <div className="flex items-center justify-center gap-3">
               <ShieldCheck className="h-5 w-5 text-primary" />
