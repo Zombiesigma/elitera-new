@@ -7,7 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, Sun, Moon, Text, Menu, Settings, ChevronsUp, BookOpen, Sparkles } from 'lucide-react';
+import { ArrowLeft, Sun, Moon, Text, Menu, Settings, ChevronsUp, BookOpen, Sparkles, Clapperboard } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
 import { doc, collection, query, orderBy } from 'firebase/firestore';
@@ -129,6 +129,50 @@ export default function ReadPage() {
     notFound();
   }
 
+  const isScreenplay = book.type === 'screenplay';
+
+  const formatScreenplayContent = (text: string) => {
+    return text.split('\n').map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={idx} className="h-6" />;
+
+        // 1. Scene Heading (INT. / EXT. / Slugline)
+        if (trimmed.startsWith('INT.') || trimmed.startsWith('EXT.') || (trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !trimmed.includes(':') && !trimmed.startsWith('(') && !trimmed.includes(' - '))) {
+            return <p key={idx} className="uppercase font-black mt-10 mb-4 tracking-tight border-b-2 border-primary/10 pb-1">{trimmed}</p>;
+        }
+
+        // 2. Transition (CUT TO:, FADE IN:, etc - Right Aligned)
+        if (trimmed === trimmed.toUpperCase() && (trimmed.endsWith(':') || trimmed.startsWith('FADE '))) {
+            return <p key={idx} className="uppercase text-right mt-8 mb-8 font-black text-primary/60">{trimmed}</p>;
+        }
+
+        // 3. Parenthetical (beat), (pointing to door)
+        if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+            return <p key={idx} className="italic text-center max-w-[60%] mx-auto mb-1 leading-none opacity-80">{trimmed}</p>;
+        }
+
+        // 4. Character Name (Centered-ish)
+        if (trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed)) {
+            return <p key={idx} className="uppercase font-black text-center mt-8 mb-1 tracking-widest text-primary">{trimmed}</p>;
+        }
+
+        // 5. Dialogue (Narrower block in the middle)
+        const prevLine = idx > 0 ? text.split('\n')[idx-1].trim() : "";
+        const isLikelyDialogue = (prevLine === prevLine.toUpperCase() && prevLine !== "") || (prevLine.startsWith('(') && prevLine.endsWith(')'));
+        
+        if (isLikelyDialogue) {
+            return (
+                <div key={idx} className="max-w-[70%] mx-auto text-center mb-4">
+                    <p className="inline-block text-left">{trimmed}</p>
+                </div>
+            );
+        }
+
+        // 6. Action lines (Standard block)
+        return <p key={idx} className="mb-4 leading-relaxed">{trimmed}</p>;
+    });
+  };
+
   const ChapterItem = ({ chapter, ...props }: { chapter: Chapter } & React.ButtonHTMLAttributes<HTMLButtonElement>) => (
       <button
         {...props}
@@ -152,10 +196,12 @@ export default function ReadPage() {
       {inSheet ? (
         <SheetHeader className="p-8 border-b shrink-0 text-left space-y-2">
           <div className="flex items-center gap-2 text-primary">
-            <BookOpen className="h-5 w-5" />
+            {isScreenplay ? <Clapperboard className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
             <SheetTitle className="font-headline text-2xl font-black truncate">{book.title}</SheetTitle>
           </div>
-          <SheetDescription className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Struktur Cerita</SheetDescription>
+          <SheetDescription className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">
+            {isScreenplay ? 'Navigasi Naskah' : 'Struktur Cerita'}
+          </SheetDescription>
         </SheetHeader>
       ) : (
         <div className="p-8 border-b shrink-0 text-left space-y-2 bg-background/50">
@@ -163,10 +209,12 @@ export default function ReadPage() {
             <Sparkles className="h-4 w-4" />
             <h2 className="font-headline text-xl font-black truncate leading-tight">{book.title}</h2>
           </div>
-          <p className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground">Daftar Isi</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground">
+            {isScreenplay ? 'Daftar Bagian' : 'Daftar Isi'}
+          </p>
         </div>
       )}
-      <nav className="flex-1 overflow-y-auto custom-scrollbar pt-2">
+      <nav className="flex-1 overflow-y-auto pt-2">
         {areChaptersLoading && (
           <div className="p-6 space-y-4">
             {Array.from({length: 8}).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-xl" />)}
@@ -180,12 +228,6 @@ export default function ReadPage() {
           ) : (
             <ChapterItem key={chapter.id} chapter={chapter} />
           )
-        )}
-        {!areChaptersLoading && (!chapters || chapters.length === 0) && (
-          <div className="flex flex-col items-center justify-center p-12 text-center space-y-4 opacity-30">
-              <BookOpen className="h-12 w-12 text-muted-foreground" />
-              <p className='text-sm font-bold uppercase tracking-widest'>Belum Ada Bab</p>
-          </div>
         )}
       </nav>
     </div>
@@ -226,7 +268,9 @@ export default function ReadPage() {
             </div>
             <div className="flex flex-col min-w-0 ml-2">
                 <h1 className="font-headline text-sm font-black truncate text-primary leading-none uppercase tracking-tight">{book.title}</h1>
-                <p className="text-[9px] font-bold text-muted-foreground mt-1 truncate uppercase tracking-widest">Pujangga: {book.authorName}</p>
+                <p className="text-[9px] font-bold text-muted-foreground mt-1 truncate uppercase tracking-widest">
+                    {isScreenplay ? 'Penulis Skenario' : 'Pujangga'}: {book.authorName}
+                </p>
             </div>
           </div>
           
@@ -291,7 +335,7 @@ export default function ReadPage() {
         
         <div 
             ref={scrollContainerRef} 
-            className="flex-1 overflow-y-auto relative bg-background/50 custom-scrollbar scroll-smooth"
+            className="flex-1 overflow-y-auto relative bg-background/50 scroll-smooth"
         >
           <div className="max-w-3xl mx-auto px-6 py-16 md:py-28">
             <header className="mb-24 text-center space-y-6">
@@ -313,12 +357,17 @@ export default function ReadPage() {
                     transition={{ delay: 0.3 }}
                     className="text-muted-foreground font-bold tracking-[0.4em] uppercase text-[10px]"
                 >
-                    Sebuah Karya dari {book.authorName}
+                    Sebuah {isScreenplay ? 'Naskah Film' : 'Karya'} dari {book.authorName}
                 </motion.p>
             </header>
 
             <article 
-                className="prose prose-zinc dark:prose-invert max-w-none transition-all duration-300 prose-p:leading-[1.8] prose-p:mb-8 prose-p:text-foreground/90 prose-headings:font-headline prose-headings:font-black prose-blockquote:border-l-4 prose-blockquote:border-primary/30 prose-blockquote:bg-primary/5 prose-blockquote:py-4 prose-blockquote:px-8 prose-blockquote:rounded-r-3xl prose-blockquote:italic"
+                className={cn(
+                    "max-w-none transition-all duration-300",
+                    isScreenplay 
+                        ? "font-mono whitespace-pre-wrap screenplay-mode text-foreground/80" 
+                        : "prose prose-zinc dark:prose-invert prose-p:leading-[1.8] prose-p:mb-8 prose-p:text-foreground/90 prose-headings:font-headline prose-headings:font-black font-serif"
+                )}
                 style={{ fontSize: `${fontSize}px` }}
             >
                 {areChaptersLoading ? (
@@ -330,8 +379,6 @@ export default function ReadPage() {
                                     <Skeleton className="h-4 w-full rounded-full" />
                                     <Skeleton className="h-4 w-full rounded-full" />
                                     <Skeleton className="h-4 w-11/12 rounded-full" />
-                                    <Skeleton className="h-4 w-full rounded-full" />
-                                    <Skeleton className="h-4 w-4/5 rounded-full" />
                                 </div>
                             </div>
                         ))}
@@ -340,19 +387,30 @@ export default function ReadPage() {
                     chapters.map((chapter, chapterIndex) => (
                         <React.Fragment key={chapter.id}>
                             <section id={`chapter-${chapter.id}`} className="scroll-m-32 mb-32 md:mb-48 chapter-container">
-                                <div className="flex items-center gap-6 mb-16 group">
-                                    <span className="font-mono text-xs font-black text-primary/30 group-hover:text-primary transition-all tracking-widest">
-                                        BAGIAN {String(chapter.order).padStart(2, '0')}
-                                    </span>
-                                    <div className="h-px flex-1 bg-gradient-to-r from-primary/20 to-transparent" />
-                                </div>
+                                {!isScreenplay && (
+                                    <div className="flex items-center gap-6 mb-16 group">
+                                        <span className="font-mono text-xs font-black text-primary/30 group-hover:text-primary transition-all tracking-widest">
+                                            BAGIAN {String(chapter.order).padStart(2, '0')}
+                                        </span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-primary/20 to-transparent" />
+                                    </div>
+                                )}
                                 
-                                <h2 className="font-headline text-4xl md:text-5xl font-black mb-12 m-0 border-none leading-tight">{chapter.title}</h2>
+                                <h2 className={cn(
+                                    "font-black mb-12 m-0 border-none leading-tight",
+                                    isScreenplay ? "text-2xl md:text-3xl font-mono text-primary/40 uppercase text-center" : "font-headline text-4xl md:text-5xl"
+                                )}>
+                                    {chapter.title}
+                                </h2>
                                 
-                                <div className="markdown-content font-serif">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {chapter.content}
-                                    </ReactMarkdown>
+                                <div className="markdown-content">
+                                    {isScreenplay ? (
+                                        formatScreenplayContent(chapter.content)
+                                    ) : (
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {chapter.content}
+                                        </ReactMarkdown>
+                                    )}
                                 </div>
                                 
                                 {chapterIndex < chapters.length - 1 ? (
@@ -371,14 +429,14 @@ export default function ReadPage() {
                                         className="mt-40 p-16 rounded-[3rem] bg-card/50 border border-border/50 text-center space-y-8 shadow-2xl backdrop-blur-sm"
                                     >
                                         <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                                            <BookOpen className="text-primary h-10 w-10" />
+                                            {isScreenplay ? <Clapperboard className="text-primary h-10 w-10" /> : <BookOpen className="text-primary h-10 w-10" />}
                                         </div>
                                         <div className="space-y-3">
                                             <h3 className="font-headline text-3xl font-black italic">Tamat</h3>
-                                            <p className="text-muted-foreground max-w-sm mx-auto text-sm leading-relaxed font-medium">Anda telah menuntaskan seluruh petualangan dalam buku ini. Berikan apresiasi Anda kepada sang pujangga melalui kolom komentar!</p>
+                                            <p className="text-muted-foreground max-sm mx-auto text-sm leading-relaxed font-medium">Anda telah menuntaskan seluruh petualangan dalam {isScreenplay ? 'naskah' : 'buku'} ini. Berikan apresiasi Anda kepada sang pujangga melalui kolom komentar!</p>
                                         </div>
                                         <Button asChild size="lg" className="rounded-full px-12 h-14 font-black shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">
-                                            <Link href={`/books/${book.id}`}>Kembali ke Detail Karya</Link>
+                                            <Link href={`/books/${book.id}`}>Kembali ke Detail</Link>
                                         </Button>
                                     </motion.div>
                                 )}
@@ -392,7 +450,7 @@ export default function ReadPage() {
                         </div>
                         <div className="space-y-3">
                             <h2 className="font-headline text-4xl font-black">Sedang Disusun...</h2>
-                            <p className="text-muted-foreground font-medium tracking-wide">Pujangga belum mempublikasikan bab cerita apa pun. Nantikan segera!</p>
+                            <p className="text-muted-foreground font-medium tracking-wide">Penulis belum mempublikasikan bagian apa pun.</p>
                         </div>
                         <Button asChild variant="ghost" className="rounded-full font-bold">
                             <Link href={`/books/${book.id}`}><ArrowLeft className="mr-2 h-4 w-4" /> Kembali</Link>
@@ -424,22 +482,8 @@ export default function ReadPage() {
       </div>
       
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.08);
-          border-radius: 10px;
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.08);
-        }
-        
-        /* Drop Cap Styling */
-        .markdown-content p:first-of-type::first-letter {
+        /* Drop Cap Styling - Standard Books Only */
+        article:not(.screenplay-mode) .markdown-content p:first-of-type::first-letter {
             font-size: 4rem;
             line-height: 1;
             font-family: 'Playfair Display', serif;
@@ -449,6 +493,10 @@ export default function ReadPage() {
             margin-top: 0.25rem;
             color: hsl(var(--primary));
             text-shadow: 2px 2px 0px hsla(var(--primary), 0.1);
+        }
+
+        .screenplay-mode {
+            font-family: 'Courier Prime', 'Courier New', Courier, monospace !important;
         }
 
         .animate-spin-slow {
@@ -503,15 +551,6 @@ function ReadPageSkeleton() {
                     <div className="text-center space-y-6">
                         <Skeleton className="h-20 w-3/4 mx-auto rounded-3xl" />
                         <Skeleton className="h-4 w-1/4 mx-auto rounded-full" />
-                    </div>
-                    <div className="space-y-8">
-                        <Skeleton className="h-10 w-1/3 rounded-2xl" />
-                        <div className="space-y-4">
-                            <Skeleton className="h-4 w-full rounded-full" />
-                            <Skeleton className="h-4 w-full rounded-full" />
-                            <Skeleton className="h-4 w-full rounded-full" />
-                            <Skeleton className="h-4 w-5/6 rounded-full" />
-                        </div>
                     </div>
                 </div>
             </div>
