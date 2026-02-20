@@ -5,29 +5,21 @@ import { initializeFirebase } from '@/firebase';
 import { collection, query, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
 import type { Book, Chapter } from '@/lib/types';
 
-/**
- * Server action to generate a professional PDF for a book or screenplay.
- * Perfected layout with cover design, page numbers, and industry formatting.
- */
 export async function generateBookPdf(bookId: string): Promise<string> {
   const { firestore } = initializeFirebase();
   if (!firestore) throw new Error('Firestore not initialized');
 
-  // 1. Fetch Book Data
   const bookRef = doc(firestore, 'books', bookId);
   const bookSnap = await getDoc(bookRef);
   if (!bookSnap.exists()) throw new Error('Book not found');
   const book = { id: bookSnap.id, ...bookSnap.data() } as Book;
 
-  // 2. Fetch Chapters
   const chaptersQuery = query(collection(firestore, 'books', bookId, 'chapters'), orderBy('order', 'asc'));
   const chaptersSnap = await getDocs(chaptersQuery);
   const chapters = chaptersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Chapter));
 
-  // 3. Create PDF with pdf-lib
   const pdfDoc = await PDFLib.create();
   
-  // Standard Fonts
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
@@ -40,17 +32,15 @@ export async function generateBookPdf(bookId: string): Promise<string> {
   const PAGE_HEIGHT = 841.89; // A4
   const MARGIN = 60;
 
-  // --- Cover Page Design ---
   let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   const { width, height } = page.getSize();
 
-  // Background Decorative Border
   page.drawRectangle({
     x: 30,
     y: 30,
     width: width - 60,
     height: height - 60,
-    borderColor: rgb(0.23, 0.51, 0.96), // Elitera Primary
+    borderColor: rgb(0.23, 0.51, 0.96), 
     borderWidth: 2,
   });
 
@@ -63,7 +53,6 @@ export async function generateBookPdf(bookId: string): Promise<string> {
     borderWidth: 0.5,
   });
 
-  // Title - Centered
   const titleFontSize = 32;
   const titleText = book.title.toUpperCase();
   const titleWidth = fontBold.widthOfTextAtSize(titleText, titleFontSize);
@@ -78,7 +67,6 @@ export async function generateBookPdf(bookId: string): Promise<string> {
     lineHeight: 38,
   });
 
-  // Author Subtitle
   const authorIntro = 'Sebuah Mahakarya Oleh:';
   const authorIntroWidth = fontItalic.widthOfTextAtSize(authorIntro, 14);
   page.drawText(authorIntro, {
@@ -100,7 +88,6 @@ export async function generateBookPdf(bookId: string): Promise<string> {
     color: rgb(0.23, 0.51, 0.96),
   });
 
-  // Category Tag
   const categoryText = `${book.genre.toUpperCase()} | ${book.type === 'screenplay' ? 'NASKAH FILM' : 'NOVEL'}`;
   const catFontSize = 10;
   const catWidth = fontRegular.widthOfTextAtSize(categoryText, catFontSize);
@@ -122,7 +109,6 @@ export async function generateBookPdf(bookId: string): Promise<string> {
     color: rgb(0.5, 0.5, 0.5),
   });
 
-  // Logo Placeholder / Brand Name
   page.drawText('ELITERA', {
     x: (width - fontBold.widthOfTextAtSize('ELITERA', 16)) / 2,
     y: 60,
@@ -131,14 +117,12 @@ export async function generateBookPdf(bookId: string): Promise<string> {
     color: rgb(0.2, 0.2, 0.2),
   });
 
-  // --- Content Pages ---
   let pageCount = 1;
 
   for (const chapter of chapters) {
     page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     pageCount++;
 
-    // Header Branding (Subtle)
     page.drawText('ELITERA DIGITAL LITERACY', {
       x: MARGIN,
       y: height - 40,
@@ -155,7 +139,6 @@ export async function generateBookPdf(bookId: string): Promise<string> {
       color: rgb(0.7, 0.7, 0.7),
     });
 
-    // Chapter Title
     const isScreenplay = book.type === 'screenplay';
     const chapterFont = isScreenplay ? fontMonoBold : fontSerifBold;
     
@@ -172,7 +155,6 @@ export async function generateBookPdf(bookId: string): Promise<string> {
     const contentWidth = width - (MARGIN * 2);
 
     if (isScreenplay) {
-      // Industry Standard Screenplay Logic
       const lines = chapter.content.split('\n');
       for (const line of lines) {
         const trimmed = line.trim();
@@ -186,35 +168,31 @@ export async function generateBookPdf(bookId: string): Promise<string> {
         let size = 12;
         let wrapWidth = contentWidth;
 
-        // 1. Scene Headings (INT. / EXT.)
         if (trimmed.startsWith('INT.') || trimmed.startsWith('EXT.') || (trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !trimmed.includes(':') && !trimmed.startsWith('(') && !trimmed.includes(' - '))) {
           font = fontMonoBold;
           currentY -= 10;
         } 
-        // 2. Transitions (CUT TO:, FADE IN:, etc)
         else if (trimmed === trimmed.toUpperCase() && (trimmed.endsWith(':') || trimmed.startsWith('FADE '))) {
           x = width - MARGIN - fontMono.widthOfTextAtSize(trimmed, size);
           font = fontMonoBold;
         } 
-        // 3. Parentheticals (beat), (pointing to door)
         else if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
           x = (width - fontItalic.widthOfTextAtSize(trimmed, size)) / 2;
           font = fontItalic;
         } 
-        // 4. Character Names (Centered)
         else if (trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed)) {
           x = (width - fontMonoBold.widthOfTextAtSize(trimmed, size)) / 2;
           font = fontMonoBold;
           currentY -= 5;
         } 
-        // 5. Dialogue (Standard Screenplay Alignment)
         else {
-            const prevLineIdx = lines.indexOf(line) - 1;
-            const prevLine = prevLineIdx >= 0 ? lines[prevLineIdx].trim() : "";
+            const linesArray = chapter.content.split('\n');
+            const currentLineIdx = linesArray.indexOf(line);
+            const prevLine = currentLineIdx > 0 ? linesArray[currentLineIdx - 1].trim() : "";
             const isPrevCharOrParen = (prevLine === prevLine.toUpperCase() && prevLine !== "") || (prevLine.startsWith('(') && prevLine.endsWith(')'));
             
             if (isPrevCharOrParen) {
-                x = MARGIN + 100; // Dialogue indent
+                x = MARGIN + 100; 
                 wrapWidth = contentWidth - 200;
             }
         }
@@ -238,7 +216,6 @@ export async function generateBookPdf(bookId: string): Promise<string> {
         }
       }
     } else {
-      // Standard Book Formatting (Serif)
       const lines = wrapText(chapter.content, contentWidth, fontSerifRegular, 12);
       for (const line of lines) {
         if (currentY < 70) {
@@ -255,7 +232,6 @@ export async function generateBookPdf(bookId: string): Promise<string> {
     addFooter(page, pageCount, fontRegular, width);
   }
 
-  // 4. Save and Upload to GitHub
   const pdfBytes = await pdfDoc.save();
   const pdfBuffer = Buffer.from(pdfBytes);
   const safeFileName = book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
