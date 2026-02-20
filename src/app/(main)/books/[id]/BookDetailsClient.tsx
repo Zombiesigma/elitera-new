@@ -255,7 +255,6 @@ export default function BookDetailsClient() {
 
   return (
     <div className="relative">
-      {/* Background Decorative Element */}
       <div className="absolute top-0 left-0 w-full h-[400px] -z-10 overflow-hidden opacity-20 blur-3xl pointer-events-none">
           <Image src={book.coverUrl} alt="" fill className="object-cover" />
       </div>
@@ -267,7 +266,6 @@ export default function BookDetailsClient() {
         className="space-y-12"
       >
         <div className="grid md:grid-cols-12 gap-8 lg:gap-12">
-          {/* Left Column: Cover */}
           <div className="md:col-span-4 lg:col-span-3">
             <Card className="overflow-hidden shadow-2xl border-none ring-1 ring-border/50 sticky top-24">
               <div className="aspect-[2/3] relative group">
@@ -303,7 +301,6 @@ export default function BookDetailsClient() {
             </Card>
           </div>
 
-          {/* Right Column: Details */}
           <div className="md:col-span-8 lg:col-span-9 space-y-8">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
