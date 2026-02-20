@@ -55,7 +55,6 @@ export default function AdminPage() {
 
   const isAdmin = adminProfile?.role === 'admin';
 
-  // Permintaan Penulis
   const authorRequestsQuery = useMemo(() => (
     (firestore && currentUser) ? collection(firestore, 'authorRequests') : null
   ), [firestore, currentUser]);
@@ -122,19 +121,16 @@ export default function AdminPage() {
       
       const bookData = bookSnap.data() as Book;
       
-      // 1. Generate PDF Automatically
       toast({ title: "Menghasilkan PDF...", description: "Menyusun karya untuk publikasi resmi." });
       const pdfUrl = await generateBookPdf(bookId);
 
       const batch = writeBatch(firestore);
       
-      // 2. Update Book Status and File URL
       batch.update(bookRef, { 
         status: 'published',
         fileUrl: pdfUrl 
       });
 
-      // 3. BROADCAST NOTIFICATION SYSTEM
       if (bookData.visibility === 'followers_only') {
           const followersRef = collection(firestore, 'users', bookData.authorId, 'followers');
           const followersSnap = await getDocs(followersRef);
@@ -156,7 +152,6 @@ export default function AdminPage() {
               });
           });
       } else {
-          // Broadcast Global
           const allUsersSnap = await getDocs(collection(firestore, 'users'));
           
           allUsersSnap.forEach((userDoc) => {
