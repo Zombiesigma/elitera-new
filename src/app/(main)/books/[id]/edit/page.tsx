@@ -657,7 +657,7 @@ export default function EditBookPage() {
                                                             <FormItem className={cn("flex items-center space-x-3 space-y-0 p-4 rounded-xl border transition-all cursor-pointer", field.value === 'public' ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
                                                                 <FormControl><RadioGroupItem value="public" className="sr-only" /></FormControl>
                                                                 <Label className="flex items-center gap-3 cursor-pointer w-full font-normal" onClick={() => field.onChange('public')}><Globe className="h-4 w-4" /><span className="font-bold text-sm">Publik</span></Label>
-                                                            </FormItem>
+                                                            </InterItem>
                                                             <FormItem className={cn("flex items-center space-x-3 space-y-0 p-4 rounded-xl border transition-all cursor-pointer", field.value === 'followers_only' ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
                                                                 <FormControl><RadioGroupItem value="followers_only" className="sr-only" /></FormControl>
                                                                 <Label className="flex items-center gap-3 cursor-pointer w-full font-normal" onClick={() => field.onChange('followers_only')}><Users className="h-4 w-4" /><span className="font-bold text-sm">Pengikut</span></Label>
