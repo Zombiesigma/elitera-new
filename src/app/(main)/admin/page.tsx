@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useFirestore, useCollection, useUser, useDoc } from '@/firebase';
-import { collection, query, doc, writeBatch, updateDoc, where, deleteDoc, getDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, query, doc, writeBatch, updateDoc, where, deleteDoc, getDoc, getDocs, serverTimestamp, addDoc } from 'firebase/firestore';
 import {
   Card,
   CardContent,
@@ -33,13 +33,15 @@ import {
   ChevronRight,
   PenTool,
   Activity,
-  ShieldAlert
+  ShieldAlert,
+  FileText
 } from "lucide-react";
 import type { AuthorRequest, Book, User as AppUser, Story } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { generateBookPdf } from "@/app/actions/pdf-generator";
 
 export default function AdminPage() {
   const { user: currentUser } = useUser();
@@ -119,10 +121,20 @@ export default function AdminPage() {
       }
       
       const bookData = bookSnap.data() as Book;
+      
+      // 1. Generate PDF Automatically
+      toast({ title: "Menghasilkan PDF...", description: "Menyusun karya untuk publikasi resmi." });
+      const pdfUrl = await generateBookPdf(bookId);
+
       const batch = writeBatch(firestore);
       
-      batch.update(bookRef, { status: 'published' });
+      // 2. Update Book Status and File URL
+      batch.update(bookRef, { 
+        status: 'published',
+        fileUrl: pdfUrl 
+      });
 
+      // 3. BROADCAST NOTIFICATION SYSTEM
       if (bookData.visibility === 'followers_only') {
           const followersRef = collection(firestore, 'users', bookData.authorId, 'followers');
           const followersSnap = await getDocs(followersRef);
@@ -143,17 +155,39 @@ export default function AdminPage() {
                   createdAt: serverTimestamp(),
               });
           });
+      } else {
+          // Broadcast Global
+          const allUsersSnap = await getDocs(collection(firestore, 'users'));
+          
+          allUsersSnap.forEach((userDoc) => {
+              const userId = userDoc.id;
+              if (userId !== bookData.authorId) {
+                  const notificationRef = doc(collection(firestore, `users/${userId}/notifications`));
+                  batch.set(notificationRef, {
+                      type: 'broadcast',
+                      text: `Mahakarya baru telah terbit: "${bookData.title}" oleh ${bookData.authorName}`,
+                      link: `/books/${bookId}`,
+                      actor: {
+                          uid: bookData.authorId,
+                          displayName: bookData.authorName,
+                          photoURL: bookData.authorAvatarUrl,
+                      },
+                      read: false,
+                      createdAt: serverTimestamp(),
+                  });
+              }
+          });
       }
 
       await batch.commit();
       toast({ 
         variant: 'success', 
-        title: "Buku Disetujui", 
-        description: `"${bookTitle}" telah berhasil diterbitkan.` 
+        title: "Karya Resmi Terbit", 
+        description: `"${bookTitle}" telah berhasil diterbitkan dan disiarkan ke seluruh pembaca.` 
       });
     } catch (error) {
       console.error("Error approving book:", error);
-      toast({ variant: "destructive", title: "Gagal Menyetujui" });
+      toast({ variant: "destructive", title: "Gagal Menyetujui", description: "Terjadi kesalahan saat pembuatan PDF atau broadcast." });
     } finally {
       setProcessingId(null);
     }
@@ -404,7 +438,10 @@ export default function AdminPage() {
                                             </TableCell>
                                             <TableCell className="font-bold text-[10px] truncate max-w-[80px]">{book.authorName}</TableCell>
                                             <TableCell className="text-right px-6 space-x-1.5 whitespace-nowrap">
-                                                <Button size="sm" onClick={() => handleApproveBook(book.id, book.title)} disabled={!!processingId} className="rounded-full h-8 px-3 text-[10px]">Terbit</Button>
+                                                <Button size="sm" onClick={() => handleApproveBook(book.id, book.title)} disabled={!!processingId} className="rounded-full h-8 px-3 text-[10px] gap-1.5">
+                                                    {processingId === book.id ? <Loader2 className="h-3 w-3 animate-spin"/> : <FileText className="h-3 w-3" />}
+                                                    Terbit
+                                                </Button>
                                                 <Button variant="outline" size="sm" className="rounded-full h-8 px-3 text-[10px]" asChild><Link href={`/books/${book.id}`}>Cek</Link></Button>
                                             </TableCell>
                                         </TableRow>
