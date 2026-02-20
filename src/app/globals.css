@@ -63,14 +63,14 @@
     -webkit-tap-highlight-color: transparent;
   }
   
-  /* Global Scrollbar Hiding */
+  /* Global Scrollbar Removal for Modern Aesthetic */
   ::-webkit-scrollbar {
     display: none !important;
   }
   
   * {
-    -ms-overflow-style: none !important;  /* IE and Edge */
-    scrollbar-width: none !important;  /* Firefox */
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
   }
 
   html {
@@ -109,15 +109,4 @@
 
 .animate-float {
   animation: float 6s ease-in-out infinite;
-}
-
-@keyframes marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
-.animate-marquee {
-  display: inline-block;
-  animation: marquee 15s linear infinite;
-  padding-right: 50px;
 }
