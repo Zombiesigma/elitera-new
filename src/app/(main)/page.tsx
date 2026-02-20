@@ -124,13 +124,11 @@ export default function HomePage() {
 
   return (
     <div className="relative pb-24 overflow-x-hidden w-full">
-      {/* Decorative Background Mesh */}
       <div className="absolute top-[-100px] left-[-100px] w-[600px] h-[600px] bg-primary/10 rounded-full blur-[140px] -z-10 pointer-events-none animate-pulse" />
       <div className="absolute top-[30%] right-[-100px] w-[500px] h-[500px] bg-accent/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
       <div className="absolute bottom-[-100px] left-[20%] w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -z-10 pointer-events-none" />
 
       <div className="space-y-16 w-full max-w-full overflow-x-hidden">
-        {/* Stories Section - High End Carousel */}
         <motion.section 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -151,7 +149,6 @@ export default function HomePage() {
           />
         </motion.section>
 
-        {/* Hero Welcome Section - Premium Landing Style */}
         <AnimatePresence mode="wait">
           {showHero && (
             <motion.section
@@ -195,7 +192,6 @@ export default function HomePage() {
           )}
         </AnimatePresence>
 
-        {/* Categories Quick Access - Modern Glass Cards */}
         <section className="space-y-8 w-full">
           <div className="flex items-center gap-4 px-1">
             <h2 className="text-xl md:text-2xl font-headline font-black tracking-tight flex items-center gap-3 whitespace-nowrap">
@@ -226,7 +222,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Top Authors Section - High Impact Horizontal Ranking */}
         <section className="space-y-8">
             <div className="flex items-center justify-between px-1">
                 <div className="space-y-1">
@@ -289,7 +284,6 @@ export default function HomePage() {
             </div>
         </section>
 
-        {/* Main Content Carousels - Clean & Focus */}
         <div className="space-y-20 w-full">
           <section className="space-y-8">
             <div className="flex items-center justify-between px-1">
@@ -322,7 +316,6 @@ export default function HomePage() {
           </section>
         </div>
 
-        {/* Footer CTA - High Impact & Modern */}
         {!isProfileLoading && userProfile?.role === 'pembaca' && (
           <motion.section 
             initial={{ opacity: 0, scale: 0.98 }}
