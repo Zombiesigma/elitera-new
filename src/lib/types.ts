@@ -53,6 +53,14 @@ export type Chapter = {
     createdAt: Timestamp;
 };
 
+export type Music = {
+  id: string;
+  title: string;
+  artist: string;
+  url: string;
+  createdAt: Timestamp;
+};
+
 export type Comment = {
   id: string;
   text: string;
@@ -231,6 +239,12 @@ export type StoryLike = {
   likedAt: Timestamp;
 };
 
+export type StoryLikeDoc = {
+  id: string; // userId
+  userId: string;
+  likedAt: Timestamp;
+};
+
 export type StoryView = {
   id: string; // The userId
   userId: string;
@@ -276,3 +290,14 @@ export type ReelCommentLike = {
   userId: string;
   likedAt: Timestamp;
 }
+
+export type VideoCallSession = {
+  id: string;
+  callerId: string;
+  callerName: string;
+  callerPhotoURL: string;
+  receiverId: string;
+  roomUrl: string;
+  status: 'calling' | 'accepted' | 'rejected' | 'ended';
+  createdAt: Timestamp;
+};
