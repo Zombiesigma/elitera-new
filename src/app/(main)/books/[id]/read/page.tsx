@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -7,11 +8,12 @@ import { Slider } from '@/components/ui/slider';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, Sun, Moon, Text, Menu, Settings, ChevronsUp, BookOpen, Sparkles, Clapperboard } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Sun, Moon, Text, Menu, Settings, ChevronsUp, BookOpen, Sparkles, Clapperboard, Music2, Volume2, Play, Pause, Headphones, X } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
 import { doc, collection, query, orderBy } from 'firebase/firestore';
-import type { Book, Chapter } from '@/lib/types';
+import type { Book, Chapter, Music } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import React from 'react';
@@ -29,6 +31,12 @@ export default function ReadPage() {
   const [readingProgress, setReadingProgress] = useState(0);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+
+  // Audio System
+  const [activeMusic, setActiveMusic] = useState<Music | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.5);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +60,11 @@ export default function ReadPage() {
       : null
   ), [firestore, params.id]);
   const { data: chapters, isLoading: areChaptersLoading } = useCollection<Chapter>(chaptersQuery);
+
+  const musicQuery = useMemo(() => (
+    firestore ? query(collection(firestore, 'music'), orderBy('createdAt', 'desc')) : null
+  ), [firestore]);
+  const { data: musicList } = useCollection<Music>(musicQuery);
 
   useEffect(() => {
     setIsMounted(true);
@@ -119,6 +132,37 @@ export default function ReadPage() {
             behavior: 'smooth'
         });
     }
+  };
+
+  // Audio Control Logic
+  useEffect(() => {
+    if (activeMusic) {
+        if (audioRef.current) {
+            audioRef.current.src = activeMusic.url;
+            audioRef.current.volume = volume;
+            audioRef.current.play().catch(e => console.log("Auto-play blocked"));
+            setIsPlaying(true);
+        }
+    } else {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+        }
+    }
+  }, [activeMusic]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  const togglePlayback = () => {
+    if (!audioRef.current || !activeMusic) return;
+    if (isPlaying) {
+        audioRef.current.pause();
+    } else {
+        audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
   };
   
   if (isBookLoading || !isMounted) {
@@ -230,6 +274,7 @@ export default function ReadPage() {
 
   return (
     <div className="flex h-screen -mt-14 -mx-4 md:-mx-6 bg-background selection:bg-primary/20">
+      <audio ref={audioRef} loop />
       <aside className="hidden md:block md:w-72 lg:w-80 border-r flex-shrink-0 shadow-xl z-20">
           <ChapterList />
       </aside>
@@ -270,57 +315,136 @@ export default function ReadPage() {
           </div>
           
           <div className="flex items-center gap-1">
+            {activeMusic && (
+                <div className="hidden sm:flex items-center gap-3 px-4 py-1.5 bg-primary/10 rounded-full border border-primary/20 mr-2">
+                    <motion.div 
+                        animate={{ rotate: isPlaying ? 360 : 0 }} 
+                        transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                        className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center border border-white/20"
+                    >
+                        <Music2 className="h-3 w-3 text-primary" />
+                    </motion.div>
+                    <div className="min-w-0 max-w-[100px]">
+                        <p className="text-[8px] font-black text-primary truncate uppercase">{activeMusic.title}</p>
+                    </div>
+                    <button onClick={togglePlayback} className="text-primary hover:scale-110 transition-transform">
+                        {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+                    </button>
+                </div>
+            )}
+
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/5 group transition-all">
                     <Settings className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors"/>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-8 shadow-2xl rounded-[2rem] border-none bg-card/95 backdrop-blur-xl" align="end">
-                <div className="space-y-8">
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-2 text-primary">
-                        <Text className="h-4 w-4" />
-                        <Label className="text-xs font-black uppercase tracking-[0.2em]">Preferensi Baca</Label>
-                    </div>
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-muted-foreground">Ukuran Huruf</span>
-                            <span className="bg-primary/10 text-primary px-3 py-1 rounded-full font-mono font-black">{fontSize}px</span>
+              <PopoverContent className="w-80 p-0 shadow-2xl rounded-[2rem] border-none bg-card/95 backdrop-blur-xl overflow-hidden" align="end">
+                <Tabs defaultValue="visual" className="w-full">
+                    <TabsList className="w-full h-12 bg-muted/30 rounded-none border-b border-border/50">
+                        <TabsTrigger value="visual" className="flex-1 text-[10px] font-black uppercase tracking-widest gap-2">
+                            <Text className="h-3 w-3" /> Tampilan
+                        </TabsTrigger>
+                        <TabsTrigger value="audio" className="flex-1 text-[10px] font-black uppercase tracking-widest gap-2">
+                            <Headphones className="h-3 w-3" /> Suasana
+                        </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="visual" className="p-8 space-y-8 mt-0">
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-muted-foreground uppercase tracking-widest text-[10px]">Ukuran Huruf</span>
+                                <span className="bg-primary/10 text-primary px-3 py-1 rounded-full font-mono font-black">{fontSize}px</span>
+                            </div>
+                            <div className="flex items-center gap-4 py-2">
+                                <Text className="h-3 w-3 text-muted-foreground opacity-50"/>
+                                <Slider 
+                                    defaultValue={[fontSize]} 
+                                    max={32} 
+                                    min={14} 
+                                    step={1} 
+                                    className="w-full"
+                                    onValueChange={(value) => setFontSize(value[0])}
+                                />
+                                <Text className="h-6 w-6 text-muted-foreground"/>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-4 py-2">
-                            <Text className="h-3 w-3 text-muted-foreground opacity-50"/>
-                            <Slider 
-                                defaultValue={[fontSize]} 
-                                max={32} 
-                                min={14} 
-                                step={1} 
-                                className="w-full"
-                                onValueChange={(value) => setFontSize(value[0])}
-                            />
-                            <Text className="h-6 w-6 text-muted-foreground"/>
+                        
+                        <div className="pt-6 border-t border-border/50 flex items-center justify-between">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-xs font-black uppercase tracking-widest">Mode Gelap</span>
+                                <span className="text-[10px] text-muted-foreground font-medium italic">Lindungi mata Anda</span>
+                            </div>
+                            <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className={cn(
+                                    "rounded-2xl h-12 w-12 transition-all duration-500 border-2", 
+                                    isDark ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "hover:border-primary hover:text-primary"
+                                )} 
+                                onClick={toggleTheme}
+                            >
+                                {isDark ? <Sun className="h-5 w-5 animate-spin-slow"/> : <Moon className="h-5 w-5"/>}
+                            </Button>
                         </div>
-                    </div>
-                  </div>
-                  
-                  <div className="pt-6 border-t border-border/50 flex items-center justify-between">
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-black uppercase tracking-widest">Mode Gelap</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">Lindungi mata Anda</span>
-                    </div>
-                    <Button 
-                        variant="outline" 
-                        size="icon" 
-                        className={cn(
-                            "rounded-2xl h-12 w-12 transition-all duration-500 border-2", 
-                            isDark ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "hover:border-primary hover:text-primary"
-                        )} 
-                        onClick={toggleTheme}
-                    >
-                        {isDark ? <Sun className="h-5 w-5 animate-spin-slow"/> : <Moon className="h-5 w-5"/>}
-                    </Button>
-                  </div>
-                </div>
+                    </TabsContent>
+
+                    <TabsContent value="audio" className="p-8 space-y-8 mt-0">
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-muted-foreground uppercase tracking-widest text-[10px]">Volume Musik</span>
+                                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full font-mono font-black">{Math.round(volume * 100)}%</span>
+                            </div>
+                            <div className="flex items-center gap-4 py-2">
+                                <Volume2 className="h-4 w-4 text-muted-foreground opacity-50" />
+                                <Slider 
+                                    defaultValue={[volume * 100]} 
+                                    max={100} 
+                                    min={0} 
+                                    step={1} 
+                                    className="w-full"
+                                    onValueChange={(value) => setVolume(value[0] / 100)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Pilih Alunan Nada</span>
+                            <div className="grid gap-2 max-h-[200px] overflow-y-auto no-scrollbar">
+                                <Button 
+                                    variant="ghost" 
+                                    className={cn(
+                                        "w-full justify-start h-12 rounded-xl border-2 transition-all",
+                                        !activeMusic ? "border-primary bg-primary/5 text-primary" : "border-transparent"
+                                    )}
+                                    onClick={() => setActiveMusic(null)}
+                                >
+                                    <X className="h-4 w-4 mr-3" />
+                                    <span className="font-bold text-sm">Hening</span>
+                                </Button>
+                                {musicList?.map((music) => (
+                                    <Button 
+                                        key={music.id}
+                                        variant="ghost" 
+                                        className={cn(
+                                            "w-full justify-start h-14 rounded-xl border-2 transition-all p-3",
+                                            activeMusic?.id === music.id ? "border-primary bg-primary/5 text-primary shadow-sm" : "border-transparent bg-muted/20 hover:bg-muted/40"
+                                        )}
+                                        onClick={() => setActiveMusic(music)}
+                                    >
+                                        <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center mr-3 shadow-inner shrink-0">
+                                            <Music2 className="h-4 w-4" />
+                                        </div>
+                                        <div className="flex flex-col items-start min-w-0">
+                                            <span className="font-black text-sm truncate w-full">{music.title}</span>
+                                            <span className="text-[9px] font-bold uppercase opacity-60 truncate">{music.artist}</span>
+                                        </div>
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    </TabsContent>
+                </Tabs>
               </PopoverContent>
             </Popover>
           </div>
