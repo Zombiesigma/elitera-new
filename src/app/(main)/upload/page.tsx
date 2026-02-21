@@ -20,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles, AlertTriangle, BookUser, Upload, FileImage, Globe, Users, ArrowRight, PenTool, FileText, Type, File as FileIcon } from "lucide-react";
 import type { User as AppUser } from '@/lib/types';
 import { uploadFile, uploadBookFile } from '@/lib/uploader';
-import { extractBookContent } from '@/app/actions/book-processor';
+import { extractBookContent } from '../../actions/book-processor';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
