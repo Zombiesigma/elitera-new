@@ -9,7 +9,24 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Sun, Moon, Text, Menu, Settings, ChevronsUp, BookOpen, Sparkles, Clapperboard, Music2, Volume2, Play, Pause, Headphones, X } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Sun, 
+  Moon, 
+  Text, 
+  Menu, 
+  Settings, 
+  ChevronsUp, 
+  BookOpen, 
+  Sparkles, 
+  Clapperboard, 
+  Music2, 
+  Volume2, 
+  Play, 
+  Pause, 
+  Headphones, 
+  X 
+} from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
 import { doc, collection, query, orderBy } from 'firebase/firestore';
