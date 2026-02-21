@@ -17,7 +17,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, BookUp, GripVertical, FileEdit, Info, Trash2, Settings, FileImage, Upload, Sparkles, Globe, Users, CheckCircle2, ChevronLeft, Menu, X, Check } from "lucide-react";
+import { 
+  Loader2, 
+  PlusCircle, 
+  BookUp, 
+  GripVertical, 
+  FileEdit, 
+  Info, 
+  Trash2, 
+  Settings, 
+  FileImage, 
+  Upload, 
+  Sparkles, 
+  Globe, 
+  Users, 
+  CheckCircle2, 
+  ChevronLeft, 
+  Menu, 
+  X, 
+  Check, 
+  Clapperboard, 
+  Type, 
+  User as UserIcon, 
+  MessageCircle, 
+  ArrowRight, 
+  Zap,
+  Maximize2,
+  Minimize2,
+  Clock,
+  Layout
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +66,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { screenplayHelper } from '@/ai/flows/screenplay-helper-flow';
 
 const chapterSchema = z.object({
   title: z.string().min(3, "Judul bab minimal 3 karakter."),
@@ -72,7 +102,12 @@ export default function EditBookPage() {
   const [isDeleteDialogOpen, setIsDeletingDialogOpen] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isZenMode, setIsZenMode] = useState(false);
+  
+  const [aiResult, setAiResult] = useState<string | null>(null);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevChapterIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -356,6 +391,57 @@ export default function EditBookPage() {
     }
   };
 
+  // Screenplay Formatting Helpers
+  const insertFormatting = (type: 'slugline' | 'action' | 'character' | 'dialogue' | 'parenthetical' | 'transition') => {
+    if (!textareaRef.current) return;
+    const el = textareaRef.current;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const text = el.value;
+    
+    let insertion = "";
+    switch(type) {
+        case 'slugline': insertion = "\nINT. LOKASI - WAKTU\n\n"; break;
+        case 'action': insertion = "\nKarakter melakukan sesuatu di sini...\n\n"; break;
+        case 'character': insertion = "\n          NAMA KARAKTER\n"; break;
+        case 'dialogue': insertion = "     (Dialog karakter di sini...)\n\n"; break;
+        case 'parenthetical': insertion = "     (dengan ekspresi)\n"; break;
+        case 'transition': insertion = "\n                                     FADE OUT.\n\n"; break;
+    }
+
+    const newText = text.substring(0, start) + insertion + text.substring(end);
+    chapterForm.setValue('content', newText, { shouldDirty: true });
+    
+    setTimeout(() => {
+        el.focus();
+        el.setSelectionRange(start + insertion.length, start + insertion.length);
+    }, 10);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (book?.type !== 'screenplay') return;
+
+    // Standard Screenplay Tab Logic
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        insertFormatting('character');
+    }
+  };
+
+  const handleAiTask = async (task: 'summarize' | 'naturalize_dialogue' | 'suggest_plot') => {
+    const content = chapterForm.getValues('content');
+    if (!content) return;
+
+    setIsAiProcessing(true);
+    try {
+        const response = await screenplayHelper({ context: content, task });
+        setAiResult(response.result);
+    } catch (err) {
+        toast({ variant: 'destructive', title: 'AI Gagal', description: 'Gagal memproses permintaan.' });
+    } finally {
+        setIsAiProcessing(false);
+    }
+  };
 
   if (isBookLoading || areChaptersLoading || isProfileLoading) {
     return (
@@ -382,6 +468,9 @@ export default function EditBookPage() {
   const activeChapter = chapters?.find(c => c.id === activeChapterId);
   const isScreenplay = book.type === 'screenplay';
 
+  const wordCount = activeChapter?.content.split(/\s+/).filter(Boolean).length || 0;
+  const pageEst = Math.ceil(wordCount / 250); // 250 words per page approx
+
   const SidebarContentBody = () => (
     <div className="flex flex-col h-full">
         <div className="p-6 border-b bg-background/50 backdrop-blur">
@@ -389,7 +478,7 @@ export default function EditBookPage() {
                 <ChevronLeft className="h-3 w-3 transition-transform group-hover:-translate-x-1" /> Kembali ke Detail
             </Link>
             <p className="text-[10px] uppercase tracking-[0.2em] font-black text-primary/60 mb-1">
-                {isScreenplay ? 'Editor Naskah' : 'Editor Buku'}
+                {isScreenplay ? 'Industrial Script Editor' : 'Editor Novel Premium'}
             </p>
             <h2 className="font-headline text-xl font-bold truncate leading-tight">{book.title}</h2>
         </div>
@@ -412,7 +501,7 @@ export default function EditBookPage() {
             <div className="space-y-3">
                 <div className="flex items-center justify-between px-2">
                     <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
-                        {isScreenplay ? 'Alur Cerita' : 'Struktur Bab'}
+                        {isScreenplay ? 'Daftar Scene / Bagian' : 'Struktur Bab'}
                     </p>
                     <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{chapters?.length || 0}</span>
                 </div>
@@ -436,9 +525,42 @@ export default function EditBookPage() {
                     ))}
                 </div>
             </div>
+
+            {isScreenplay && activeTab === 'editor' && (
+                <div className="pt-6 space-y-4">
+                    <p className="px-2 text-[10px] font-black uppercase tracking-widest text-primary/60">Asisten AI (Genkit)</p>
+                    <div className="grid gap-2">
+                        <Button variant="outline" size="sm" className="justify-start text-[10px] h-9 rounded-xl gap-2 font-bold" onClick={() => handleAiTask('summarize')} disabled={isAiProcessing}>
+                            <Zap className="h-3 w-3 text-yellow-500" /> Ringkas Scene
+                        </Button>
+                        <Button variant="outline" size="sm" className="justify-start text-[10px] h-9 rounded-xl gap-2 font-bold" onClick={() => handleAiTask('naturalize_dialogue')} disabled={isAiProcessing}>
+                            <MessageCircle className="h-3 w-3 text-blue-500" /> Cek Dialog
+                        </Button>
+                        <Button variant="outline" size="sm" className="justify-start text-[10px] h-9 rounded-xl gap-2 font-bold" onClick={() => handleAiTask('suggest_plot')} disabled={isAiProcessing}>
+                            <ArrowRight className="h-3 w-3 text-green-500" /> Ide Berikutnya
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
 
-        <div className="p-4 border-t bg-background/50">
+        <div className="p-4 border-t bg-background/50 space-y-4">
+            <div className="bg-muted/30 p-3 rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-[9px] font-black uppercase text-muted-foreground">
+                    <span>Statistik</span>
+                    <Clock className="h-2.5 w-2.5" />
+                </div>
+                <div className="flex justify-between items-end">
+                    <div>
+                        <p className="text-sm font-black">{wordCount}</p>
+                        <p className="text-[8px] font-bold opacity-60">KATA</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-sm font-black">{pageEst} min</p>
+                        <p className="text-[8px] font-bold opacity-60">EST. DURASI</p>
+                    </div>
+                </div>
+            </div>
             <Button 
                 variant="outline" 
                 className="w-full h-11 rounded-xl border-dashed border-2 hover:border-primary hover:bg-primary/5 hover:text-primary transition-all font-bold" 
@@ -452,119 +574,87 @@ export default function EditBookPage() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.14))] -m-6 overflow-hidden bg-background">
-      <aside className="hidden md:flex flex-col w-72 lg:w-80 border-r bg-muted/20 shrink-0">
-        <SidebarContentBody />
-      </aside>
+    <div className={cn("flex h-[calc(100vh-theme(spacing.14))] -m-6 overflow-hidden bg-background", isZenMode && "h-screen m-0")}>
+      {!isZenMode && (
+        <aside className="hidden md:flex flex-col w-72 lg:w-80 border-r bg-muted/20 shrink-0">
+            <SidebarContentBody />
+        </aside>
+      )}
 
       <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden">
-         <header className="h-16 border-b flex items-center justify-between px-4 md:px-6 bg-background/95 backdrop-blur-md z-30 sticky top-0 shadow-sm">
-            <div className="flex items-center gap-2 md:gap-4 min-w-0">
-                <div className="md:hidden">
-                    <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
-                        <SheetTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full">
-                                <Menu className="h-5 w-5" />
-                            </Button>
-                        </SheetTrigger>
-                        <SheetContent side="left" className="p-0 w-80" onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
-                            <SheetHeader className="sr-only">
-                                <SheetTitle>Menu Editor</SheetTitle>
-                            </SheetHeader>
-                            <SidebarContentBody />
-                        </SheetContent>
-                    </Sheet>
-                </div>
-
-                <div className={cn("flex items-center gap-2", activeTab === 'settings' ? "text-primary" : "text-foreground")}>
-                    {activeTab === 'settings' ? <Settings className="h-5 w-5 hidden sm:block"/> : <FileEdit className="h-5 w-5 hidden sm:block"/>}
-                    <h3 className="font-bold text-sm md:text-base truncate">
-                        {activeTab === 'settings' ? 'Pengaturan Karya' : (activeChapter?.title || "Pilih Bab")}
-                    </h3>
-                </div>
-                
-                {lastSaved && !isCompleted && (
-                    <div className="hidden lg:flex items-center gap-1.5 text-[10px] font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
-                        <CheckCircle2 className="h-3 w-3" /> Tersimpan {lastSaved.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                )}
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-                {isCompleted && (
-                    <Badge className="bg-emerald-500 hover:bg-emerald-600 font-black text-[9px] uppercase tracking-widest px-3 py-1 mr-2 hidden sm:flex items-center gap-1.5 shadow-lg shadow-emerald-500/20">
-                        <Check className="h-3 w-3" /> Mahakarya Selesai
-                    </Badge>
-                )}
-
-                {!isCompleted && (
-                    <AlertDialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="rounded-full border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-bold hidden lg:flex h-9 px-4">
-                                Tandai Tamat
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle className="font-headline text-2xl text-emerald-600">Selesaikan Mahakarya?</AlertDialogTitle>
-                                <AlertDialogDescription className="text-base">
-                                    Tindakan ini akan mengunci seluruh konten bab secara permanen. Anda tidak dapat menambah atau mengedit bab lagi, namun tetap dapat memperbarui informasi dasar seperti sinopsis dan sampul.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter className="mt-6 gap-2">
-                                <AlertDialogCancel className="rounded-full">Belum Selesai</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleMarkAsCompleted} className="bg-emerald-600 hover:bg-emerald-700 rounded-full px-8 font-bold text-white">
-                                    {isCompleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ya, Sudah Tamat'}
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                )}
-
-                <div className="h-6 w-px bg-border mx-1 hidden sm:block" />
-
-                <div className="flex items-center gap-1">
-                    {book.status !== 'pending_review' || isAdmin ? (
-                        <AlertDialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
-                            <AlertDialogTrigger asChild>
-                                <Button size="sm" className="rounded-full px-3 md:px-5 font-bold shadow-lg shadow-primary/20 text-xs md:text-sm" disabled={isSubmittingReview}>
-                                    {isSubmittingReview ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookUp className="mr-2 h-4 w-4" />}
-                                    {book.status === 'published' ? 'Update' : 'Publikasi'}
+         {!isZenMode && (
+            <header className="h-16 border-b flex items-center justify-between px-4 md:px-6 bg-background/95 backdrop-blur-md z-30 sticky top-0 shadow-sm">
+                <div className="flex items-center gap-2 md:gap-4 min-w-0">
+                    <div className="md:hidden">
+                        <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
+                            <SheetTrigger asChild>
+                                <Button variant="ghost" size="icon" className="rounded-full">
+                                    <Menu className="h-5 w-5" />
                                 </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle className="font-headline text-2xl">Siap Untuk Berbagi?</AlertDialogTitle>
-                                    <AlertDialogDescription className="text-base">Karya Anda akan dikirim ke tim moderasi Elitera sebelum tampil secara publik.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter className="mt-6 gap-2">
-                                    <AlertDialogCancel className="rounded-full">Batal</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleSubmitForReview} className="rounded-full px-8 font-bold">Ya, Kirim Sekarang</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    ) : null}
+                            </SheetTrigger>
+                            <SheetContent side="left" className="p-0 w-80" onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
+                                <SheetHeader className="sr-only">
+                                    <SheetTitle>Menu Editor</SheetTitle>
+                                </SheetHeader>
+                                <SidebarContentBody />
+                            </SheetContent>
+                        </Sheet>
+                    </div>
 
-                    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeletingDialogOpen}>
-                        <AlertDialogTrigger asChild>
-                            <Button size="icon" variant="ghost" className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10" disabled={isDeleting}><Trash2 className="h-5 w-5" /></Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle className="text-destructive font-headline text-2xl">Hapus Karya Ini?</AlertDialogTitle>
-                                <AlertDialogDescription className="text-base">Tindakan ini tidak dapat dibatalkan. Seluruh isi dan data karya akan hilang selamanya.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter className="mt-6">
-                                <AlertDialogCancel className="rounded-full">Batal</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDeleteBook} className="bg-destructive hover:bg-destructive/90 rounded-full px-8 font-bold text-white">
-                                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Hapus Selamanya'}
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <div className={cn("flex items-center gap-2", activeTab === 'settings' ? "text-primary" : "text-foreground")}>
+                        {activeTab === 'settings' ? <Settings className="h-5 w-5 hidden sm:block"/> : <FileEdit className="h-5 w-5 hidden sm:block"/>}
+                        <h3 className="font-bold text-sm md:text-base truncate">
+                            {activeTab === 'settings' ? 'Pengaturan Karya' : (activeChapter?.title || "Pilih Bab")}
+                        </h3>
+                    </div>
+                    
+                    {lastSaved && !isCompleted && (
+                        <div className="hidden lg:flex items-center gap-1.5 text-[10px] font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
+                            <CheckCircle2 className="h-3 w-3" /> Tersimpan {lastSaved.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                    )}
                 </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/5" onClick={() => setIsZenMode(true)} title="Mode Fokus">
+                        <Maximize2 className="h-4 w-4" />
+                    </Button>
+
+                    <div className="h-6 w-px bg-border mx-1 hidden sm:block" />
+
+                    <div className="flex items-center gap-1">
+                        {book.status !== 'pending_review' || isAdmin ? (
+                            <AlertDialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
+                                <AlertDialogTrigger asChild>
+                                    <Button size="sm" className="rounded-full px-3 md:px-5 font-bold shadow-lg shadow-primary/20 text-xs md:text-sm" disabled={isSubmittingReview}>
+                                        {isSubmittingReview ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookUp className="mr-2 h-4 w-4" />}
+                                        {book.status === 'published' ? 'Update' : 'Publikasi'}
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent onCloseAutoFocus={(e) => { e.preventDefault(); if(typeof document !== 'undefined') document.body.style.pointerEvents = 'auto'; }}>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle className="font-headline text-2xl">Siap Untuk Berbagi?</AlertDialogTitle>
+                                        <AlertDialogDescription className="text-base">Karya Anda akan dikirim ke tim moderasi Elitera sebelum tampil secara publik.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter className="mt-6 gap-2">
+                                        <AlertDialogCancel className="rounded-full">Batal</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleSubmitForReview} className="rounded-full px-8 font-bold">Ya, Kirim Sekarang</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        ) : null}
+                    </div>
+                </div>
+            </header>
+         )}
+
+        {isZenMode && (
+            <div className="fixed top-6 right-6 z-50">
+                <Button variant="outline" size="icon" className="rounded-full bg-background/50 backdrop-blur shadow-xl border-2" onClick={() => setIsZenMode(false)}>
+                    <Minimize2 className="h-4 w-4" />
+                </Button>
             </div>
-         </header>
+        )}
 
         <div className="flex-1 overflow-y-auto relative">
             <AnimatePresence mode="wait">
@@ -694,47 +784,73 @@ export default function EditBookPage() {
                     </motion.div>
                 ) : activeChapter ? (
                     <motion.div key={activeChapterId} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-4xl mx-auto py-8 md:py-12 px-6 lg:px-12">
+                        {/* Industrial Screenplay Toolbar */}
+                        {isScreenplay && (
+                            <div className="flex flex-wrap items-center gap-2 mb-8 p-3 bg-muted/20 rounded-2xl border border-primary/10 backdrop-blur sticky top-0 z-20">
+                                <Button variant="ghost" size="sm" className="text-[10px] font-black h-8 px-3 rounded-lg bg-background shadow-sm" onClick={() => insertFormatting('slugline')}>SLUGLINE</Button>
+                                <Button variant="ghost" size="sm" className="text-[10px] font-black h-8 px-3 rounded-lg bg-background shadow-sm" onClick={() => insertFormatting('action')}>ACTION</Button>
+                                <Button variant="ghost" size="sm" className="text-[10px] font-black h-8 px-3 rounded-lg bg-background shadow-sm" onClick={() => insertFormatting('character')}>CHARACTER</Button>
+                                <Button variant="ghost" size="sm" className="text-[10px] font-black h-8 px-3 rounded-lg bg-background shadow-sm" onClick={() => insertFormatting('dialogue')}>DIALOGUE</Button>
+                                <Button variant="ghost" size="sm" className="text-[10px] font-black h-8 px-3 rounded-lg bg-background shadow-sm" onClick={() => insertFormatting('parenthetical')}>PARENTHETICAL</Button>
+                                <Button variant="ghost" size="sm" className="text-[10px] font-black h-8 px-3 rounded-lg bg-background shadow-sm ml-auto" onClick={() => insertFormatting('transition')}>TRANSITION</Button>
+                            </div>
+                        )}
+
                         <Form {...chapterForm}>
                             <form className="space-y-8 pb-32" onSubmit={(e) => e.preventDefault()}>
-                                {(book.status === 'pending_review' || isCompleted) && (
-                                    <Alert className={cn("rounded-2xl", isCompleted ? "bg-emerald-50 border-emerald-200" : "bg-primary/5 border-primary/20")}>
-                                        {isCompleted ? <Check className="h-4 w-4 text-emerald-600" /> : <Info className="h-4 w-4 text-primary" />}
-                                        <AlertTitle className={cn("font-bold", isCompleted && "text-emerald-700")}>
-                                            {isCompleted ? "Mahakarya Selesai & Terkunci" : "Konten Terkunci"}
-                                        </AlertTitle>
-                                        <AlertDescription className={cn(isCompleted ? "text-emerald-600/80" : "text-muted-foreground")}>
-                                            {isCompleted ? "Karya ini sudah ditandai tamat. Isi bab tidak dapat diubah lagi." : "Karya sedang dalam tahap peninjauan admin Elitera."}
-                                        </AlertDescription>
-                                    </Alert>
-                                )}
                                 <FormField 
                                     control={chapterForm.control} 
                                     name="title" 
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormControl>
-                                                <Input placeholder={isScreenplay ? "BAGIAN 1" : "Judul Bab..."} {...field} disabled={isReviewing || isCompleted} className="border-none shadow-none text-3xl md:text-5xl font-headline font-black px-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/30 mb-2" />
+                                                <Input placeholder={isScreenplay ? "SCENE 1" : "Judul Bab..."} {...field} disabled={isReviewing || isCompleted} className="border-none shadow-none text-3xl md:text-5xl font-headline font-black px-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/30 mb-2" />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )} 
                                 />
                                 <div className="w-16 h-1 bg-primary/20 rounded-full mb-10" />
+                                
                                 <FormField 
                                     control={chapterForm.control} 
                                     name="content" 
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormControl>
-                                                <Textarea 
-                                                    placeholder={isScreenplay ? "INT. LOKASI - WAKTU\n\nMulai tuangkan naskahmu..." : "Mulai tuangkan kata-kata Anda..."} 
-                                                    {...field} 
-                                                    className={cn(
-                                                        "min-h-[70vh] border-none shadow-none px-0 focus-visible:ring-0 leading-[1.8] resize-none bg-transparent placeholder:text-muted-foreground/20 scroll-smooth",
-                                                        isScreenplay ? "font-mono text-base md:text-lg" : "text-lg md:text-2xl font-serif"
-                                                    )} 
-                                                    disabled={isReviewing || isCompleted} 
-                                                />
+                                                <div className="relative group/editor">
+                                                    <Textarea 
+                                                        ref={textareaRef}
+                                                        placeholder={isScreenplay ? "Mulai naskah dengan SLUGLINE (INT. atau EXT.)..." : "Mulai tuangkan kata-kata Anda..."} 
+                                                        {...field} 
+                                                        onKeyDown={handleKeyDown}
+                                                        className={cn(
+                                                            "min-h-[70vh] border-none shadow-none px-0 focus-visible:ring-0 leading-[1.8] resize-none bg-transparent placeholder:text-muted-foreground/20 scroll-smooth",
+                                                            isScreenplay ? "font-mono text-base md:text-lg tracking-tight" : "text-lg md:text-2xl font-serif"
+                                                        )} 
+                                                        disabled={isReviewing || isCompleted} 
+                                                    />
+                                                    
+                                                    <AnimatePresence>
+                                                        {aiResult && (
+                                                            <motion.div 
+                                                                initial={{ opacity: 0, y: 20 }} 
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                exit={{ opacity: 0, y: 20 }}
+                                                                className="fixed bottom-10 right-6 left-6 md:left-auto md:w-96 z-50 bg-indigo-950 text-white p-6 rounded-[2rem] shadow-2xl border border-white/10"
+                                                            >
+                                                                <div className="flex items-center justify-between mb-4">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Sparkles className="h-4 w-4 text-yellow-400" />
+                                                                        <span className="text-[10px] font-black uppercase tracking-widest">Elitera AI Intelligence</span>
+                                                                    </div>
+                                                                    <button onClick={() => setAiResult(null)}><X className="h-4 w-4" /></button>
+                                                                </div>
+                                                                <p className="text-xs font-medium leading-relaxed italic border-l-2 border-white/20 pl-4 py-1">"{aiResult}"</p>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
