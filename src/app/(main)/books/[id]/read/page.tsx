@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Separator } from '@/components/ui/separator';
 import { 
@@ -279,10 +278,14 @@ export default function ReadPage() {
           <div className="flex items-center gap-1">
             <AnimatePresence>
                 {(activeMusic || activeYoutube) && (
-                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex items-center gap-3 px-4 py-1.5 bg-primary/10 rounded-full border border-primary/20 mr-2">
+                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="hidden xs:flex items-center gap-3 px-4 py-1.5 bg-primary/10 rounded-full border border-primary/20 mr-2">
                         <motion.div animate={{ rotate: isPlaying ? 360 : 0 }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} className="h-6 w-6 rounded-full bg-zinc-900 flex items-center justify-center border border-white/20 shadow-lg">
                             {activeYoutube ? <Youtube className="h-3 w-3 text-red-500" /> : <Music2 className="h-3 w-3 text-primary" />}
                         </motion.div>
+                        <div className="flex flex-col max-w-[100px]">
+                            <span className="text-[8px] font-black uppercase text-primary/60 tracking-widest truncate">Now Playing</span>
+                            <span className="text-[10px] font-bold truncate italic">"{activeMusic?.title || activeYoutube?.name}"</span>
+                        </div>
                         <button onClick={togglePlayback} className="text-primary hover:scale-110 active:scale-90 p-1">
                             {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
                         </button>
@@ -290,65 +293,93 @@ export default function ReadPage() {
                 )}
             </AnimatePresence>
 
+            {/* Backsound (Headset) Popover */}
             <Popover>
-              <PopoverTrigger asChild><Button variant="ghost" size="icon" className="rounded-full group"><Settings className="h-5 w-5 text-muted-foreground group-hover:text-primary"/></Button></PopoverTrigger>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full relative group">
+                    <Headphones className={cn("h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors", isPlaying && "text-primary animate-pulse")} />
+                    {isPlaying && (
+                        <div className="absolute -top-1 -right-1 flex gap-0.5 items-end h-3 px-1">
+                            <motion.div animate={{ height: [4, 10, 4] }} transition={{ repeat: Infinity, duration: 0.5 }} className="w-0.5 bg-primary rounded-full" />
+                            <motion.div animate={{ height: [6, 12, 6] }} transition={{ repeat: Infinity, duration: 0.7 }} className="w-0.5 bg-primary rounded-full" />
+                            <motion.div animate={{ height: [3, 8, 3] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-0.5 bg-primary rounded-full" />
+                        </div>
+                    )}
+                </Button>
+              </PopoverTrigger>
               <PopoverContent className="w-80 p-0 shadow-2xl rounded-[2.5rem] border-none bg-card/95 backdrop-blur-xl overflow-hidden" align="end">
-                <Tabs defaultValue="visual" className="w-full">
-                    <TabsList className="w-full h-12 bg-muted/30 rounded-none border-b">
-                        <TabsTrigger value="visual" className="flex-1 text-[10px] font-black uppercase tracking-widest gap-2"><Text className="h-3 w-3" /> Tampilan</TabsTrigger>
-                        <TabsTrigger value="audio" className="flex-1 text-[10px] font-black uppercase tracking-widest gap-2"><Headphones className="h-3 w-3" /> Suasana</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="visual" className="p-8 space-y-8 mt-0">
-                        <div className="space-y-6">
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="font-bold text-muted-foreground uppercase tracking-widest text-[10px]">Ukuran Huruf</span>
-                                <span className="bg-primary/10 text-primary px-3 py-1 rounded-full font-mono font-black">{fontSize}px</span>
-                            </div>
-                            <Slider defaultValue={[fontSize]} max={32} min={14} step={1} className="w-full" onValueChange={(v) => setFontSize(v[0])} />
+                <div className="p-6 space-y-6 flex flex-col h-[450px]">
+                    <div className="space-y-4 shrink-0">
+                        <div className="flex justify-between items-center text-xs">
+                            <span className="font-black text-primary uppercase tracking-widest text-[10px] flex items-center gap-2">
+                                <Volume2 className="h-3.5 w-3.5" /> Volume Backsound
+                            </span>
+                            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full font-mono font-black">{Math.round(volume * 100)}%</span>
                         </div>
-                        <div className="pt-6 border-t flex items-center justify-between">
-                            <div className="flex flex-col gap-0.5"><span className="text-xs font-black uppercase tracking-widest">Mode Gelap</span></div>
-                            <Button variant="outline" size="icon" className={cn("rounded-2xl h-12 w-12 transition-all border-2", isDark ? "bg-primary text-white border-primary shadow-lg" : "")} onClick={toggleTheme}>{isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5"/>}</Button>
+                        <Slider defaultValue={[volume * 100]} max={100} min={0} step={1} className="w-full" onValueChange={(v) => setVolume(v[0] / 100)} />
+                    </div>
+                    <Separator className="opacity-50" />
+                    <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+                        <div className="relative group px-1">
+                            <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5", isSearchingYt ? "text-primary animate-pulse" : "text-muted-foreground")} />
+                            <Input placeholder="Cari alunan suasana..." className="h-10 pl-10 rounded-xl bg-muted/30 border-none text-xs font-medium" value={musicSearchQuery} onChange={(e) => setMusicSearchQuery(e.target.value)} />
                         </div>
-                    </TabsContent>
-                    <TabsContent value="audio" className="p-6 space-y-6 mt-0 flex flex-col h-[400px]">
-                        <div className="space-y-4 shrink-0">
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="font-bold text-muted-foreground uppercase tracking-widest text-[10px]">Volume</span>
-                                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full font-mono font-black">{Math.round(volume * 100)}%</span>
+                        <div className="grid gap-2 overflow-y-auto no-scrollbar pr-1 flex-1">
+                            <Button variant="ghost" className="w-full justify-start h-12 rounded-xl bg-muted/10 hover:bg-rose-500/10 hover:text-rose-500 shrink-0" onClick={stopAllMusic}>
+                                <X className="h-4 w-4 mr-3" />
+                                <span className="font-bold text-xs uppercase tracking-widest">Heningkan Semua</span>
+                            </Button>
+                            <div className="space-y-1">
+                                <p className="text-[8px] font-black uppercase text-primary/60 px-2 py-2 tracking-[0.2em] flex items-center gap-2">
+                                    <Sparkles className="h-2.5 w-2.5" /> Koleksi Elitera
+                                </p>
+                                {filteredInternalMusic.map((music) => (
+                                    <Button key={music.id} variant="ghost" className={cn("w-full justify-start h-14 rounded-xl border-2 p-3", activeMusic?.id === music.id ? "border-primary bg-primary/5 text-primary" : "border-transparent bg-muted/20")} onClick={() => playInternal(music)}>
+                                        <div className="flex flex-col items-start min-w-0 text-left"><span className="font-black text-xs truncate w-full italic">"{music.title}"</span><span className="text-[8px] font-bold uppercase opacity-60 truncate">{music.artist}</span></div>
+                                    </Button>
+                                ))}
                             </div>
-                            <Slider defaultValue={[volume * 100]} max={100} min={0} step={1} className="w-full" onValueChange={(v) => setVolume(v[0] / 100)} />
-                        </div>
-                        <Separator className="opacity-50" />
-                        <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-                            <div className="relative group px-1">
-                                <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5", isSearchingYt ? "text-primary animate-pulse" : "text-muted-foreground")} />
-                                <Input placeholder="Cari musik..." className="h-10 pl-10 rounded-xl bg-muted/30 border-none text-xs font-medium" value={musicSearchQuery} onChange={(e) => setMusicSearchQuery(e.target.value)} />
-                            </div>
-                            <div className="grid gap-2 overflow-y-auto no-scrollbar pr-1 flex-1">
-                                <Button variant="ghost" className="w-full justify-start h-12 rounded-xl bg-muted/10 hover:bg-rose-500/10 hover:text-rose-500" onClick={stopAllMusic}><X className="h-4 w-4 mr-3" /><span className="font-bold text-xs uppercase tracking-widest">Heningkan</span></Button>
-                                <div className="space-y-1">
-                                    <p className="text-[8px] font-black uppercase text-muted-foreground/60 px-2 py-2">Koleksi Elitera</p>
-                                    {filteredInternalMusic.map((music) => (
-                                        <Button key={music.id} variant="ghost" className={cn("w-full justify-start h-14 rounded-xl border-2 p-3", activeMusic?.id === music.id ? "border-primary bg-primary/5 text-primary" : "border-transparent bg-muted/20")} onClick={() => playInternal(music)}>
-                                            <div className="flex flex-col items-start min-w-0 text-left"><span className="font-black text-xs truncate w-full italic">"{music.title}"</span><span className="text-[8px] font-bold uppercase opacity-60 truncate">{music.artist}</span></div>
+                            {ytResults.length > 0 && (
+                                <div className="space-y-1 pt-2 border-t border-border/30">
+                                    <p className="text-[8px] font-black uppercase text-red-500/60 px-2 py-2 tracking-[0.2em] flex items-center gap-2">
+                                        <Youtube className="h-2.5 w-2.5" /> YouTube Audio
+                                    </p>
+                                    {ytResults.map((track, i) => (
+                                        <Button key={i} variant="ghost" className={cn("w-full justify-start h-14 rounded-xl border-2 p-3", activeYoutube?.id === track.id ? "border-red-500 bg-red-500/5 text-red-500" : "border-transparent bg-muted/20")} onClick={() => playYoutube(track)}>
+                                            <div className="flex flex-col items-start min-w-0 text-left"><span className="font-black text-xs truncate w-full italic">"{track.name}"</span><span className="text-[8px] font-bold uppercase opacity-60 truncate">{track.artist}</span></div>
                                         </Button>
                                     ))}
                                 </div>
-                                {ytResults.length > 0 && (
-                                    <div className="space-y-1 pt-2 border-t">
-                                        <p className="text-[8px] font-black uppercase text-red-500/60 px-2 py-2">YouTube</p>
-                                        {ytResults.map((track, i) => (
-                                            <Button key={i} variant="ghost" className={cn("w-full justify-start h-14 rounded-xl border-2 p-3", activeYoutube?.id === track.id ? "border-red-500 bg-red-500/5 text-red-500" : "border-transparent bg-muted/20")} onClick={() => playYoutube(track)}>
-                                                <div className="flex flex-col items-start min-w-0 text-left"><span className="font-black text-xs truncate w-full italic">"{track.name}"</span><span className="text-[8px] font-bold uppercase opacity-60 truncate">{track.artist}</span></div>
-                                            </Button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                            )}
                         </div>
-                    </TabsContent>
-                </Tabs>
+                    </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Visual (Font/Theme) Popover */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full group">
+                    <Settings className="h-5 w-5 text-muted-foreground group-hover:text-primary"/>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-8 shadow-2xl rounded-[2.5rem] border-none bg-card/95 backdrop-blur-xl" align="end">
+                <div className="space-y-8">
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center text-xs">
+                            <span className="font-black text-muted-foreground uppercase tracking-widest text-[10px] flex items-center gap-2">
+                                <Text className="h-3.5 w-3.5" /> Ukuran Huruf
+                            </span>
+                            <span className="bg-primary/10 text-primary px-3 py-1 rounded-full font-mono font-black">{fontSize}px</span>
+                        </div>
+                        <Slider defaultValue={[fontSize]} max={32} min={14} step={1} className="w-full" onValueChange={(v) => setFontSize(v[0])} />
+                    </div>
+                    <div className="pt-6 border-t flex items-center justify-between">
+                        <div className="flex flex-col gap-0.5"><span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Mode Gelap</span></div>
+                        <Button variant="outline" size="icon" className={cn("rounded-2xl h-12 w-12 transition-all border-2", isDark ? "bg-primary text-white border-primary shadow-lg" : "")} onClick={toggleTheme}>{isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5"/>}</Button>
+                    </div>
+                </div>
               </PopoverContent>
             </Popover>
           </div>
