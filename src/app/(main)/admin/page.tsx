@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState } from "react";
@@ -34,7 +35,8 @@ import {
   PenTool,
   Activity,
   ShieldAlert,
-  FileText
+  FileText,
+  Music2
 } from "lucide-react";
 import type { AuthorRequest, Book, User as AppUser, Story } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -242,6 +244,11 @@ export default function AdminPage() {
             <Button variant="outline" className="rounded-full font-bold shadow-sm h-11 md:h-12 px-4 md:px-6 text-xs md:text-sm" asChild>
                 <Link href="/admin/broadcast">
                     <Megaphone className="mr-2 h-4 w-4 text-orange-500" /> Siaran
+                </Link>
+            </Button>
+            <Button variant="outline" className="rounded-full font-bold shadow-sm h-11 md:h-12 px-4 md:px-6 text-xs md:text-sm" asChild>
+                <Link href="/admin/music">
+                    <Music2 className="mr-2 h-4 w-4 text-primary" /> Musik
                 </Link>
             </Button>
             <Button className="rounded-full font-bold shadow-lg shadow-primary/20 h-11 md:h-12 px-4 md:px-6 text-xs md:text-sm" asChild>
