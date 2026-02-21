@@ -63,7 +63,6 @@
     -webkit-tap-highlight-color: transparent;
   }
   
-  /* Global Scrollbar Removal for Modern Aesthetic */
   ::-webkit-scrollbar {
     display: none !important;
   }
@@ -96,17 +95,4 @@
   .glass {
     @apply bg-background/70 backdrop-blur-xl border border-white/10;
   }
-  .glass-dark {
-    @apply bg-black/40 backdrop-blur-xl border border-white/5;
-  }
-}
-
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
-}
-
-.animate-float {
-  animation: float 6s ease-in-out infinite;
 }
