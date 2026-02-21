@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utilitas unggahan file Elitera yang ultra-resilient.
  * Menggunakan GitHub sebagai Storage Utama dan Catbox sebagai Failover untuk Gambar.
@@ -93,4 +94,11 @@ export async function uploadAudio(file: File): Promise<string> {
     throw new Error('Rekaman suara terlalu besar (Maksimal 10MB).');
   }
   return await uploadToGithub(file, 'audio');
+}
+
+export async function uploadMusic(file: File): Promise<string> {
+  if (file.size > 15 * 1024 * 1024) {
+    throw new Error('Berkas musik terlalu besar (Maksimal 15MB).');
+  }
+  return await uploadToGithub(file, 'musik');
 }
