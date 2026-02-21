@@ -49,6 +49,10 @@ export default function AdminMusicPage() {
         toast({ variant: 'destructive', title: 'File Tidak Valid', description: 'Harap pilih berkas audio.' });
         return;
       }
+      if (file.size > 15 * 1024 * 1024) {
+        toast({ variant: 'destructive', title: 'File Terlalu Besar', description: 'Maksimal ukuran musik adalah 15MB.' });
+        return;
+      }
       setMusicFile(file);
     }
   };
