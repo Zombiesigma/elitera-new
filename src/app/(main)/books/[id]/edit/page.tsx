@@ -66,7 +66,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { screenplayHelper } from '@/ai/flows/screenplay-helper-flow';
+import { screenplayHelper } from '../../../../../ai/flows/screenplay-helper-flow';
 
 const chapterSchema = z.object({
   title: z.string().min(3, "Judul bab minimal 3 karakter."),
