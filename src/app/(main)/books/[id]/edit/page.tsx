@@ -67,7 +67,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { screenplayHelper } from '../../../../../ai/flows/screenplay-helper-flow';
-import { MusicSidebar } from '@/components/MusicSidebar';
+import { MusicSidebar } from '../../../../../components/MusicSidebar';
 
 const chapterSchema = z.object({
   title: z.string().min(3, "Judul bab minimal 3 karakter."),
@@ -311,7 +311,7 @@ export default function EditBookPage() {
 
   return (
     <div className={cn("flex h-[calc(100vh-theme(spacing.14))] -m-6 overflow-hidden bg-background", isZenMode && "h-screen m-0")}>
-      {!isZenMode && <aside className="hidden md:flex flex-col w-72 lg:w-80 border-r bg-muted/20 shrink-0">{activeTab === 'music' ? <div className="flex flex-col h-full"><div className="p-4 border-b"><Button variant="ghost" size="sm" className="gap-2 text-[10px] font-black uppercase" onClick={() => setActiveTab('editor')}><ArrowLeft className="h-3 w-3" /> Kembali</Button></div><MusicSidebar /></div> : <SidebarContentBody />}</aside>}
+      {!isZenMode && <aside className="hidden md:flex flex-col w-72 lg:w-80 border-r bg-muted/20 shrink-0">{activeTab === 'music' ? <div className="flex flex-col h-full"><div className="p-4 border-b"><Button variant="ghost" size="sm" className="gap-2 text-[10px] font-black uppercase tracking-widest" onClick={() => setActiveTab('editor')}><ArrowLeft className="h-3 w-3" /> Kembali ke Editor</Button></div><MusicSidebar /></div> : <SidebarContentBody />}</aside>}
       <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden">
          {!isZenMode && (
             <header className="h-16 border-b flex items-center justify-between px-4 md:px-6 bg-background/95 backdrop-blur-md z-30 sticky top-0 shadow-sm">
