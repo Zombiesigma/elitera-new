@@ -22,7 +22,8 @@ import {
   Share2,
   Zap,
   Bell,
-  Video
+  Video,
+  Maximize2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -57,8 +58,34 @@ export default function GuidePage() {
       ]
     },
     {
-      id: "reels",
+      id: "screenplay",
       icon: Clapperboard,
+      title: "Penulisan Naskah Film",
+      description: "Alat profesional untuk penulis skenario masa depan.",
+      color: "text-orange-500",
+      bg: "bg-orange-500/5",
+      content: [
+        {
+          q: "Apa itu Industrial Screenplay Editor?",
+          a: "Ini adalah editor khusus yang mematuhi standar industri film. Gunakan Toolbar di bagian atas untuk memasukkan elemen seperti SLUGLINE, ACTION, CHARACTER, dan DIALOGUE secara otomatis dengan format yang presisi."
+        },
+        {
+          q: "Shortcut Cerdas: Tombol Tab",
+          a: "Saat menulis naskah, tekan tombol **Tab** pada keyboard Anda untuk berpindah secara otomatis ke posisi penulisan Nama Karakter. Ini dirancang untuk mempercepat alur kreatif Anda."
+        },
+        {
+          q: "Zen Mode: Fokus Tanpa Gangguan",
+          a: "Klik ikon 'Maximize' di pojok kanan atas editor untuk mengaktifkan Zen Mode. Seluruh elemen antarmuka akan disembunyikan, menyisakan hanya Anda dan naskah Anda."
+        },
+        {
+          q: "Estimasi Durasi Film",
+          a: "Sistem kami secara otomatis menghitung jumlah kata dan memberikan estimasi durasi layar berdasarkan standar 1 halaman naskah ≈ 1 menit tayangan."
+        }
+      ]
+    },
+    {
+      id: "reels",
+      icon: Video,
       title: "Ekosistem Elitera Reels",
       description: "Momen puitis dalam format video pendek yang dinamis.",
       color: "text-rose-500",
@@ -70,11 +97,7 @@ export default function GuidePage() {
         },
         { 
           q: "Diskusi & Balasan Bertingkat", 
-          a: "Kolom komentar Reels mendukung balasan bertingkat (nested replies). Anda bisa membalas komentar pengguna lain untuk membangun diskusi literasi yang lebih hidup. Setiap balasan akan memberikan notifikasi kepada pemilik komentar asli." 
-        },
-        { 
-          q: "Berbagi ke Luar Platform (Rich Cards)", 
-          a: "Gunakan tombol bagikan untuk mengirimkan video ke WhatsApp, Instagram, atau Twitter. Tautan yang Anda bagikan akan otomatis menampilkan 'Rich Card' premium berisi nama penulis dan caption video, sehingga terlihat menarik bagi teman Anda." 
+          a: "Kolom komentar Reels mendukung balasan bertingkat (nested replies). Anda bisa membalas komentar pengguna lain untuk membangun diskusi literasi yang lebih hidup." 
         },
         { 
           q: "Navigasi Snap Scrolling", 
@@ -83,68 +106,46 @@ export default function GuidePage() {
       ]
     },
     {
-      id: "author",
-      icon: PenTool,
-      title: "Karir Sebagai Penulis",
-      description: "Dari draf pertama hingga menjadi pujangga ternama.",
-      color: "text-orange-500",
-      bg: "bg-orange-500/5",
-      content: [
-        { 
-          q: "Langkah menjadi Penulis Terverifikasi", 
-          a: "Lengkapi formulir di halaman 'Daftar Penulis' dengan menyertakan motivasi dan tautan portofolio karya Anda. Tim kurasi kami akan meninjau kualitas narasi Anda dalam 1-3 hari kerja sebelum memberikan lencana penulis resmi." 
-        },
-        { 
-          q: "Manajemen Draf & Auto-save", 
-          a: "Setiap bab yang Anda tulis akan disimpan secara otomatis setiap 15 detik ke Cloud. Anda tidak perlu khawatir kehilangan progres tulisan meskipun koneksi internet terputus secara tiba-tiba." 
-        },
-        { 
-          q: "Visibilitas: Publik vs Hanya Pengikut", 
-          a: "Anda dapat mengatur karya Anda sebagai 'Hanya Pengikut'. Jika dipilih, hanya pembaca yang mengikuti Anda yang dapat mengakses bab tersebut. Ini adalah cara terbaik untuk memberikan konten eksklusif kepada pendukung setia Anda." 
-        },
-        { 
-          q: "Notifikasi Otomatis untuk Pengikut", 
-          a: "Saat buku dengan status 'Hanya Pengikut' diterbitkan, sistem Elitera akan secara otomatis mengirimkan notifikasi khusus ke seluruh pengikut Anda. Mereka akan mendapatkan akses prioritas melalui tautan langsung di pusat notifikasi." 
-        }
-      ]
-    },
-    {
-      id: "social",
-      icon: Users,
-      title: "Interaksi Sosial & Momen",
-      description: "Membangun jalinan antar penikmat sastra.",
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/5",
-      content: [
-        { 
-          q: "Fitur Story (Momen 24 Jam)", 
-          a: "Story adalah tempat untuk membagikan pemikiran singkat, progres menulis, atau foto suasana meja kerja Anda. Momen ini hanya bertahan selama 24 jam. Penulis aktif akan memiliki lingkaran cahaya puitis pada avatar profil mereka." 
-        },
-        { 
-          q: "Pesan Langsung & Berbagi Karya", 
-          a: "Anda dapat membagikan 'Kartu Buku' atau 'Kartu Reels' langsung ke dalam obrolan pribadi. Ini memudahkan Anda untuk merekomendasikan bacaan kepada rekan obrolan tanpa harus keluar dari jendela pesan." 
-        },
-        { 
-          q: "Status Online & Last Seen", 
-          a: "Anda dapat melihat apakah seorang pujangga sedang aktif atau kapan terakhir kali mereka melihat naskah melalui indikator titik hijau di foto profil mereka." 
-        }
-      ]
-    },
-    {
       id: "ai",
       icon: Bot,
-      title: "Elitera AI Intelligence v1.5",
-      description: "Rekan kreatif puitis di ujung jari Anda.",
+      title: "Elitera AI Intelligence v2.0",
+      description: "Rekan kreatif puitis bertenaga Google Genkit.",
       color: "text-primary",
       bg: "bg-primary/5",
       content: [
         { 
-          q: "Apa yang bisa dilakukan Elitera AI?", 
-          a: "AI kami dirancang untuk memahami konteks sastra Indonesia. Ia dapat membantu menyusun kerangka plot (outline), memberikan saran sinonim puitis, hingga merangkum bab yang panjang menjadi sinopsis yang memikat." 
+          q: "Fitur AI Screenplay Assistant", 
+          a: "AI kami kini memiliki spesialisasi naskah film. Ia dapat: 1. **Summarize Scene** (merangkum adegan), 2. **Naturalize Dialogue** (mengevaluasi kealamian dialog), dan 3. **Suggest Plot** (memberikan ide konflik berikutnya)." 
+        },
+        { 
+          q: "Obrolan Pintar & Riwayat", 
+          a: "Di Ruang Inspirasi AI, Anda bisa berdiskusi tentang apa saja—dari writer's block hingga riset genre. Riwayat percakapan Anda tersinkronisasi secara otomatis di seluruh perangkat." 
         },
         { 
           q: "Privasi & Etika Penggunaan AI", 
-          a: "Gunakan AI sebagai mitra diskusi, bukan pengganti suara asli Anda. Elitera menghargai keaslian ide. AI membantu Anda memperluas imajinasi, sementara emosi dan jiwa tulisan tetap berasal dari hati Anda sendiri." 
+          a: "Gunakan AI sebagai mitra diskusi, bukan pengganti suara asli Anda. Elitera menghargai keaslian ide. AI membantu Anda memperluas imajinasi, sementara jiwa tulisan tetap berasal dari hati Anda sendiri." 
+        }
+      ]
+    },
+    {
+      id: "author",
+      icon: PenTool,
+      title: "Karir Sebagai Penulis",
+      description: "Dari draf pertama hingga menjadi pujangga ternama.",
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/5",
+      content: [
+        { 
+          q: "Manajemen Draf & Auto-save", 
+          a: "Setiap bab yang Anda tulis akan disimpan secara otomatis setiap 15 detik ke Cloud. Anda tidak perlu khawatir kehilangan progres tulisan meskipun koneksi internet terputus." 
+        },
+        { 
+          q: "Export ke PDF Profesional", 
+          a: "Setelah karya Anda disetujui untuk terbit, sistem Elitera akan menghasilkan file PDF dengan format premium (tipografi serif, penomoran halaman, dan sampul berbingkai) yang siap dibagikan ke khalayak luas." 
+        },
+        { 
+          q: "Status Tamat & Penguncian", 
+          a: "Anda dapat menandai karya Anda sebagai 'Tamat'. Setelah ditandai tamat, naskah akan mendapatkan lencana visual khusus dan dikunci untuk menjaga integritas mahakarya yang telah selesai." 
         }
       ]
     }
@@ -169,7 +170,7 @@ export default function GuidePage() {
                 Pusat <span className="text-primary italic underline decoration-primary/20">Bantuan</span> Elitera
             </h1>
             <p className="text-muted-foreground font-medium max-w-2xl mx-auto text-sm md:text-lg leading-relaxed px-2">
-                Panduan lengkap untuk menavigasi ekosistem literasi digital modern—dari teks puitis hingga Reels yang imersif.
+                Panduan lengkap untuk menavigasi ekosistem literasi digital modern—dari teks puitis, naskah film industri, hingga Reels yang imersif.
             </p>
         </div>
       </motion.section>
@@ -177,10 +178,10 @@ export default function GuidePage() {
       {/* Quick Access Icons */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 px-4">
         {[
-            { icon: Video, label: "Reels Pro", color: "text-rose-500", bg: "bg-rose-500/5" },
-            { icon: Bell, label: "Notif Cerdas", color: "text-blue-500", bg: "bg-blue-500/5" },
-            { icon: Sparkles, label: "Momen Aktif", color: "text-emerald-500", bg: "bg-emerald-500/5" },
-            { icon: ShieldCheck, label: "Moderasi", color: "text-orange-500", bg: "bg-orange-500/5" }
+            { icon: Clapperboard, label: "Naskah Pro", color: "text-orange-500", bg: "bg-orange-500/5" },
+            { icon: Bot, label: "Asisten AI", color: "text-primary", bg: "bg-primary/5" },
+            { icon: Maximize2, label: "Zen Mode", color: "text-indigo-500", bg: "bg-indigo-500/5" },
+            { icon: ShieldCheck, label: "Eksport PDF", color: "text-emerald-500", bg: "bg-emerald-500/5" }
         ].map((item, i) => (
             <Card key={i} className="border-none shadow-xl bg-card/50 backdrop-blur-sm rounded-[1.5rem] md:rounded-3xl p-4 md:p-6 flex flex-col items-center gap-3 group hover:scale-[1.02] transition-all">
                 <div className={cn("p-3 rounded-xl md:rounded-2xl", item.bg, item.color)}>
