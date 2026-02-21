@@ -61,6 +61,7 @@
   * {
     @apply border-border;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   
   ::-webkit-scrollbar {
@@ -74,10 +75,12 @@
 
   html {
     @apply scroll-smooth;
+    touch-action: manipulation;
   }
   body {
     @apply bg-background text-foreground antialiased min-h-screen overflow-x-hidden;
     font-feature-settings: "rlig" 1, "calt" 1;
+    touch-action: manipulation;
   }
 }
 
