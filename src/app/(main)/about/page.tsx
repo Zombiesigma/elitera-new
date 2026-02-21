@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 const devPortfolio = "https://www.gunturpadilah.web.id/";
-const devImage = "https://www.gunturpadilah.web.id/pp.jpg";
+const devImage = "https://raw.githubusercontent.com/Zombiesigma/elitera-asset/main/IMG-20251221-WA0058.jpg";
 const devName = "Guntur Padilah";
 const devBio = "Seorang antusias literasi dan pengembang full-stack yang berdedikasi menciptakan ruang digital di mana kata-kata bertemu dengan kecerdasan masa depan.";
 
