@@ -36,7 +36,8 @@ import {
   Activity,
   ShieldAlert,
   FileText,
-  Music2
+  Music2,
+  Sparkles
 } from "lucide-react";
 import type { AuthorRequest, Book, User as AppUser, Story } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -133,16 +134,15 @@ export default function AdminPage() {
         fileUrl: pdfUrl 
       });
 
-      if (bookData.visibility === 'followers_only') {
-          const followersRef = collection(firestore, 'users', bookData.authorId, 'followers');
-          const followersSnap = await getDocs(followersRef);
-          
-          followersSnap.forEach((followerDoc) => {
-              const followerId = followerDoc.id;
-              const notificationRef = doc(collection(firestore, `users/${followerId}/notifications`));
+      // Broadcast notifications
+      const allUsersSnap = await getDocs(collection(firestore, 'users'));
+      allUsersSnap.forEach((userDoc) => {
+          const userId = userDoc.id;
+          if (userId !== bookData.authorId) {
+              const notificationRef = doc(collection(firestore, `users/${userId}/notifications`));
               batch.set(notificationRef, {
                   type: 'broadcast',
-                  text: `${bookData.authorName} telah menerbitkan karya eksklusif: ${bookData.title}`,
+                  text: `Mahakarya baru telah terbit: "${bookData.title}" oleh ${bookData.authorName}`,
                   link: `/books/${bookId}`,
                   actor: {
                       uid: bookData.authorId,
@@ -152,29 +152,8 @@ export default function AdminPage() {
                   read: false,
                   createdAt: serverTimestamp(),
               });
-          });
-      } else {
-          const allUsersSnap = await getDocs(collection(firestore, 'users'));
-          
-          allUsersSnap.forEach((userDoc) => {
-              const userId = userDoc.id;
-              if (userId !== bookData.authorId) {
-                  const notificationRef = doc(collection(firestore, `users/${userId}/notifications`));
-                  batch.set(notificationRef, {
-                      type: 'broadcast',
-                      text: `Mahakarya baru telah terbit: "${bookData.title}" oleh ${bookData.authorName}`,
-                      link: `/books/${bookId}`,
-                      actor: {
-                          uid: bookData.authorId,
-                          displayName: bookData.authorName,
-                          photoURL: bookData.authorAvatarUrl,
-                      },
-                      read: false,
-                      createdAt: serverTimestamp(),
-                  });
-              }
-          });
-      }
+          }
+      });
 
       await batch.commit();
       toast({ 
@@ -229,6 +208,7 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-8 md:space-y-10 pb-20 w-full overflow-x-hidden px-1">
+      {/* Header Premium */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[9px] font-black uppercase tracking-widest mb-3">
@@ -237,7 +217,7 @@ export default function AdminPage() {
           <h1 className="text-3xl md:text-5xl font-headline font-black tracking-tight leading-none">
             Pusat <span className="text-primary italic">Kendali</span>
           </h1>
-          <p className="text-sm text-muted-foreground mt-2 font-medium">Monitoring ekosistem dan moderasi karya.</p>
+          <p className="text-sm text-muted-foreground mt-2 font-medium">Monitoring ekosistem dan moderasi karya puitis.</p>
         </motion.div>
         
         <div className="grid grid-cols-2 md:flex gap-2">
@@ -259,6 +239,7 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* Stats Section */}
       <div className="grid gap-6 md:grid-cols-12">
         <Card className="md:col-span-8 border-none shadow-xl rounded-[2rem] md:rounded-[2.5rem] bg-indigo-950 text-white overflow-hidden relative group">
             <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none group-hover:scale-110 transition-transform duration-700" />
@@ -266,42 +247,42 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                     <div className="space-y-1">
                         <CardTitle className="text-xl md:text-2xl font-headline font-black flex items-center gap-3">
-                            <Activity className="h-5 w-5 md:h-6 md:w-6 text-indigo-400" /> Statistik Anggota
+                            <Activity className="h-5 w-5 md:h-6 md:w-6 text-indigo-400" /> Statistik Komunitas
                         </CardTitle>
                     </div>
                     <div className="flex items-center gap-2 bg-white/10 px-2.5 py-1 rounded-full border border-white/10">
                         <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-[8px] font-black uppercase tracking-widest">Live</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest">Real-time</span>
                     </div>
                 </div>
             </CardHeader>
             <CardContent className="p-6 md:p-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
                     <div className="space-y-1">
-                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300/50">Total</p>
+                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300/50">Total Anggota</p>
                         <p className="text-2xl md:text-4xl font-black">{areUsersLoading ? '...' : stats.total}</p>
-                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden mt-2">
                             <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} className="h-full bg-white" />
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300/50">Pujangga</p>
+                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300/50">Pujangga Resmi</p>
                         <p className="text-2xl md:text-4xl font-black">{areUsersLoading ? '...' : stats.penulis}</p>
-                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden mt-2">
                             <motion.div initial={{ width: 0 }} animate={{ width: `${(stats.penulis/Math.max(stats.total, 1))*100}%` }} className="h-full bg-emerald-400" />
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300/50">Pembaca</p>
+                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300/50">Pembaca Setia</p>
                         <p className="text-2xl md:text-4xl font-black">{areUsersLoading ? '...' : stats.pembaca}</p>
-                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden mt-2">
                             <motion.div initial={{ width: 0 }} animate={{ width: `${(stats.pembaca/Math.max(stats.total, 1))*100}%` }} className="h-full bg-blue-400" />
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300/50">Admin</p>
+                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300/50">Tim Otoritas</p>
                         <p className="text-2xl md:text-4xl font-black">{areUsersLoading ? '...' : stats.admins}</p>
-                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden mt-2">
                             <motion.div initial={{ width: 0 }} animate={{ width: `${(stats.admins/Math.max(stats.total, 1))*100}%` }} className="h-full bg-rose-400" />
                         </div>
                     </div>
@@ -317,24 +298,25 @@ export default function AdminPage() {
                 <div className="p-3 rounded-2xl bg-primary/5 text-primary w-fit">
                     <ShieldCheck className="h-5 w-5 md:h-6 md:w-6" />
                 </div>
-                <h3 className="text-lg font-bold font-headline">Status Sistem</h3>
+                <h3 className="text-lg font-bold font-headline">Status Integritas</h3>
                 <div className="space-y-3">
                     <div className="flex items-center justify-between text-[10px] md:text-xs font-bold">
-                        <span className="text-muted-foreground">Database Core</span>
-                        <span className="text-emerald-600">Terhubung</span>
+                        <span className="text-muted-foreground">Basis Data Utama</span>
+                        <span className="text-emerald-600 flex items-center gap-1"><div className="h-1 w-1 rounded-full bg-emerald-600" /> Terhubung</span>
                     </div>
                     <div className="flex items-center justify-between text-[10px] md:text-xs font-bold">
-                        <span className="text-muted-foreground">Auth Security</span>
-                        <span className="text-emerald-600">Optimal</span>
+                        <span className="text-muted-foreground">Sertifikat SSL</span>
+                        <span className="text-emerald-600 flex items-center gap-1"><div className="h-1 w-1 rounded-full bg-emerald-600" /> Terenkripsi</span>
                     </div>
                 </div>
             </div>
             <Button variant="ghost" className="w-full mt-6 rounded-xl font-bold bg-muted/50 group-hover:bg-primary group-hover:text-white transition-all text-xs">
-                Cek Log Sistem <ChevronRight className="ml-2 h-4 w-4" />
+                Log Aktivitas <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
         </Card>
       </div>
 
+      {/* Moderation Tabs */}
       <Tabs defaultValue="authors" className="space-y-6">
         <div className="flex items-center overflow-x-auto no-scrollbar pb-2">
             <TabsList className="bg-muted/50 p-1 rounded-full h-auto">
@@ -342,10 +324,10 @@ export default function AdminPage() {
                     Penulis {authorRequests && authorRequests.length > 0 && <span className="ml-1.5 bg-rose-500 text-white text-[8px] px-1.5 py-0.5 rounded-full">{authorRequests.length}</span>}
                 </TabsTrigger>
                 <TabsTrigger value="books" className="rounded-full px-4 md:px-6 py-2 text-xs font-bold transition-all">
-                    Buku {pendingBooks && pendingBooks.length > 0 && <span className="ml-1.5 bg-rose-500 text-white text-[8px] px-1.5 py-0.5 rounded-full">{pendingBooks.length}</span>}
+                    Karya {pendingBooks && pendingBooks.length > 0 && <span className="ml-1.5 bg-rose-500 text-white text-[8px] px-1.5 py-0.5 rounded-full">{pendingBooks.length}</span>}
                 </TabsTrigger>
                 <TabsTrigger value="stories" className="rounded-full px-4 md:px-6 py-2 text-xs font-bold transition-all">
-                    Story
+                    Momen
                 </TabsTrigger>
             </TabsList>
         </div>
@@ -358,7 +340,7 @@ export default function AdminPage() {
                             <div className="p-2.5 bg-white text-primary rounded-xl shadow-sm">
                                 <PenTool className="h-5 w-5 md:h-6 md:w-6" />
                             </div>
-                            <CardTitle className="text-lg md:text-2xl font-headline font-black">Permintaan Penulis</CardTitle>
+                            <CardTitle className="text-lg md:text-2xl font-headline font-black">Permintaan Pujangga</CardTitle>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -367,8 +349,8 @@ export default function AdminPage() {
                                 <TableHeader className="bg-muted/10">
                                     <TableRow>
                                         <TableHead className="px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Kandidat</TableHead>
-                                        <TableHead className="font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Kontak</TableHead>
-                                        <TableHead className="text-right px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Aksi</TableHead>
+                                        <TableHead className="font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Kontak & Portofolio</TableHead>
+                                        <TableHead className="text-right px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Keputusan</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -379,7 +361,7 @@ export default function AdminPage() {
                                             <TableCell colSpan={3} className="h-48 text-center">
                                                 <div className="opacity-30">
                                                     <CheckCircle2 className="h-10 w-10 mx-auto mb-2" />
-                                                    <p className="font-bold text-sm">Antrean Kosong</p>
+                                                    <p className="font-bold text-sm">Semua Permintaan Diproses</p>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -387,12 +369,12 @@ export default function AdminPage() {
                                         <TableRow key={request.id}>
                                             <TableCell className="px-6 py-4 font-bold text-sm">{request.name}</TableCell>
                                             <TableCell className="text-xs">
-                                                <p className="truncate max-w-[120px]">{request.email}</p>
-                                                {request.portfolio && <a href={request.portfolio} target="_blank" className="text-[10px] text-primary font-black hover:underline">Link Portofolio</a>}
+                                                <p className="truncate max-w-[150px] font-medium text-muted-foreground">{request.email}</p>
+                                                {request.portfolio && <a href={request.portfolio} target="_blank" className="text-[10px] text-primary font-black hover:underline mt-1 flex items-center gap-1">Portofolio <ChevronRight className="h-2 w-2"/></a>}
                                             </TableCell>
                                             <TableCell className="text-right px-6 space-x-1.5 whitespace-nowrap">
-                                                <Button size="sm" onClick={() => handleApproveAuthor(request)} disabled={!!processingId} className="rounded-full h-8 px-3 text-[10px] bg-emerald-600">Setuju</Button>
-                                                <Button variant="outline" size="sm" className="rounded-full h-8 px-3 text-[10px] border-rose-100 text-rose-600">Tolak</Button>
+                                                <Button size="sm" onClick={() => handleApproveAuthor(request)} disabled={!!processingId} className="rounded-full h-8 px-4 text-[10px] bg-emerald-600 hover:bg-emerald-700 shadow-md">Setuju</Button>
+                                                <Button variant="outline" size="sm" className="rounded-full h-8 px-4 text-[10px] border-rose-100 text-rose-600 hover:bg-rose-50">Tolak</Button>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -410,7 +392,7 @@ export default function AdminPage() {
                             <div className="p-2.5 bg-white text-primary rounded-xl shadow-sm">
                                 <BookCopy className="h-5 w-5 md:h-6 md:w-6" />
                             </div>
-                            <CardTitle className="text-lg md:text-2xl font-headline font-black">Moderasi Buku</CardTitle>
+                            <CardTitle className="text-lg md:text-2xl font-headline font-black">Moderasi Mahakarya</CardTitle>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -418,7 +400,7 @@ export default function AdminPage() {
                             <Table>
                                 <TableHeader className="bg-muted/10">
                                     <TableRow>
-                                        <TableHead className="px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Karya</TableHead>
+                                        <TableHead className="px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Info Karya</TableHead>
                                         <TableHead className="font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Penulis</TableHead>
                                         <TableHead className="text-right px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Aksi</TableHead>
                                     </TableRow>
@@ -427,24 +409,27 @@ export default function AdminPage() {
                                     {areBooksLoading ? (
                                         <TableRow><TableCell colSpan={3} className="h-32 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
                                     ) : pendingBooks?.length === 0 ? (
-                                        <TableRow><TableCell colSpan={3} className="h-48 text-center opacity-30 font-bold text-sm">Tidak ada antrean.</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={3} className="h-48 text-center opacity-30 font-bold text-sm">Tidak ada antrean buku baru.</TableCell></TableRow>
                                     ) : pendingBooks?.map(book => (
                                         <TableRow key={book.id}>
                                             <TableCell className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-7 bg-muted rounded shadow-sm overflow-hidden shrink-0 relative">
+                                                    <div className="h-12 w-8 bg-muted rounded shadow-sm overflow-hidden shrink-0 relative">
                                                         <img src={book.coverUrl} alt="" className="object-cover h-full w-full" />
                                                     </div>
-                                                    <p className="font-black text-xs truncate max-w-[100px]">{book.title}</p>
+                                                    <div>
+                                                        <p className="font-black text-xs truncate max-w-[120px]">{book.title}</p>
+                                                        <Badge variant="outline" className="text-[7px] h-3 px-1 mt-1 opacity-60 uppercase">{book.genre}</Badge>
+                                                    </div>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="font-bold text-[10px] truncate max-w-[80px]">{book.authorName}</TableCell>
+                                            <TableCell className="font-bold text-[10px] text-muted-foreground">{book.authorName}</TableCell>
                                             <TableCell className="text-right px-6 space-x-1.5 whitespace-nowrap">
-                                                <Button size="sm" onClick={() => handleApproveBook(book.id, book.title)} disabled={!!processingId} className="rounded-full h-8 px-3 text-[10px] gap-1.5">
+                                                <Button size="sm" onClick={() => handleApproveBook(book.id, book.title)} disabled={!!processingId} className="rounded-full h-8 px-4 text-[10px] gap-1.5 shadow-md">
                                                     {processingId === book.id ? <Loader2 className="h-3 w-3 animate-spin"/> : <FileText className="h-3 w-3" />}
-                                                    Terbit
+                                                    Terbitkan PDF
                                                 </Button>
-                                                <Button variant="outline" size="sm" className="rounded-full h-8 px-3 text-[10px]" asChild><Link href={`/books/${book.id}`}>Cek</Link></Button>
+                                                <Button variant="outline" size="sm" className="rounded-full h-8 px-4 text-[10px]" asChild><Link href={`/books/${book.id}`}>Pratinjau</Link></Button>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -462,7 +447,7 @@ export default function AdminPage() {
                             <div className="p-2.5 bg-white text-primary rounded-xl shadow-sm">
                                 <Flame className="h-5 w-5 md:h-6 md:w-6" />
                             </div>
-                            <CardTitle className="text-lg md:text-2xl font-headline font-black">Story Aktif</CardTitle>
+                            <CardTitle className="text-lg md:text-2xl font-headline font-black">Pantauan Momen</CardTitle>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -470,30 +455,32 @@ export default function AdminPage() {
                             <Table>
                                 <TableHeader className="bg-muted/10">
                                     <TableRow>
-                                        <TableHead className="px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">User</TableHead>
-                                        <TableHead className="font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Konten</TableHead>
-                                        <TableHead className="text-right px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Aksi</TableHead>
+                                        <TableHead className="px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Pujangga</TableHead>
+                                        <TableHead className="font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Isi Momen</TableHead>
+                                        <TableHead className="text-right px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Moderasi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {areStoriesLoading ? (
                                         <TableRow><TableCell colSpan={3} className="h-32 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
                                     ) : activeStories?.length === 0 ? (
-                                        <TableRow><TableCell colSpan={3} className="h-48 text-center opacity-30 font-bold text-sm">Hening...</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={3} className="h-48 text-center opacity-30 font-bold text-sm">Tidak ada momen yang sedang tayang.</TableCell></TableRow>
                                     ) : activeStories?.map(story => (
                                         <TableRow key={story.id}>
                                             <TableCell className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
-                                                    <Avatar className="h-7 w-7">
-                                                        <AvatarImage src={story.authorAvatarUrl} />
-                                                        <AvatarFallback>{story.authorName.charAt(0)}</AvatarFallback>
+                                                    <Avatar className="h-8 w-8 ring-1 ring-border">
+                                                        <AvatarImage src={story.authorAvatarUrl} className="object-cover" />
+                                                        <AvatarFallback className="bg-primary/5 text-primary text-[10px] font-black">{story.authorName.charAt(0)}</AvatarFallback>
                                                     </Avatar>
-                                                    <p className="font-bold text-[10px] truncate max-w-[80px]">{story.authorName}</p>
+                                                    <p className="font-black text-[10px] truncate max-w-[100px]">{story.authorName}</p>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-[10px] italic truncate max-w-[120px]">"{story.content || 'Konten Media'}"</TableCell>
+                                            <TableCell className="text-[10px] italic text-muted-foreground truncate max-w-[150px]">"{story.content || 'Media Momen'}"</TableCell>
                                             <TableCell className="text-right px-6">
-                                                <Button variant="ghost" size="icon" onClick={() => handleDeleteStory(story.id)} className="text-rose-500 rounded-full h-8 w-8"><Trash2 className="h-4 w-4"/></Button>
+                                                <Button variant="ghost" size="icon" onClick={() => handleDeleteStory(story.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-full h-9 w-9">
+                                                    {processingId === story.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4"/>}
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -505,6 +492,14 @@ export default function AdminPage() {
             </TabsContent>
         </AnimatePresence>
       </Tabs>
+      
+      {/* System Integrity Footer */}
+      <div className="text-center opacity-20 select-none grayscale pb-10">
+          <div className="flex items-center justify-center gap-3">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-[10px] font-black uppercase tracking-[0.5em]">Elitera Otoritas System v2.4</span>
+          </div>
+      </div>
     </div>
   );
 }
