@@ -1,15 +1,13 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { notFound, useParams, useRouter } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
 import { doc, updateDoc, collection, serverTimestamp, query, orderBy, writeBatch, increment } from 'firebase/firestore';
 import type { Book, Chapter, User as AppUser, ScreenplayBlock } from '@/lib/types';
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,8 +29,6 @@ import {
   CheckCircle2,
   Clapperboard,
   FileText,
-  Type,
-  Layout,
   ImageIcon,
   Megaphone,
   User,
@@ -556,7 +552,7 @@ export default function EditBookPage() {
                     </motion.div>
                 ) : (
                     <div key="empty" className="flex flex-col items-center justify-center h-full opacity-30 p-12 text-center">
-                        <Layout className="h-16 w-16 mb-6" />
+                        <Clapperboard className="h-16 w-16 mb-6" />
                         <h4 className="text-2xl font-headline font-bold">
                             {isScreenplay ? 'Pilih atau Buat Scene Baru' : 'Pilih atau Buat Bagian Baru'}
                         </h4>
