@@ -24,6 +24,31 @@ export type User = {
   };
 };
 
+export type MusicTrack = {
+  id?: string;
+  name: string;
+  artist: string;
+  image: string;
+  url?: string;
+  source: 'lastfm' | 'youtube' | 'internal';
+};
+
+export type ScreenplayBlock = {
+  id: string;
+  type: 'slugline' | 'action' | 'character' | 'parenthetical' | 'dialogue' | 'transition';
+  text: string;
+};
+
+export type Shot = {
+  id: string;
+  number: string;
+  scene: string;
+  type: 'WS' | 'MS' | 'CU' | 'ECU' | string;
+  angle: string;
+  movement: string;
+  description: string;
+};
+
 export type Book = {
   id: string;
   title: string;
@@ -31,7 +56,8 @@ export type Book = {
   type: 'book' | 'screenplay';
   synopsis: string;
   coverUrl: string;
-  fileUrl?: string; // Tautan ke file asli di GitHub
+  fileUrl?: string; 
+  shotListUrl?: string; 
   viewCount: number;
   favoriteCount: number;
   chapterCount: number;
@@ -40,15 +66,23 @@ export type Book = {
   authorUsername: string;
   authorAvatarUrl: string;
   status: 'draft' | 'pending_review' | 'published' | 'rejected';
-  isCompleted?: boolean; // Indikator karya sudah tamat
+  isCompleted?: boolean;
   visibility: 'public' | 'followers_only';
+  playlist?: MusicTrack[];
+  collaboratorUids?: string[];
+  collaborators?: {
+    uid: string;
+    displayName: string;
+    photoURL: string;
+    username: string;
+  }[];
   createdAt: Timestamp;
 };
 
 export type Chapter = {
     id: string;
     title: string;
-    content: string;
+    content: string; 
     order: number;
     createdAt: Timestamp;
 };
@@ -74,7 +108,7 @@ export type Comment = {
 };
 
 export type BookCommentLike = {
-  id: string; // The userId
+  id: string;
   userId: string;
   likedAt: Timestamp;
 };
@@ -196,13 +230,13 @@ export type AiChatMessage = {
 };
 
 export type Favorite = {
-    id: string; // This will be the bookId
+    id: string; 
     userId: string;
     addedAt: Timestamp;
 };
 
 export type Follow = {
-    id: string; // This will be the user id of the person being followed/the follower
+    id: string; 
     userId: string;
     followedAt: Timestamp;
 };
@@ -234,19 +268,19 @@ export type StoryComment = {
 };
 
 export type StoryLike = {
-  id: string; // The userId
+  id: string; 
   userId: string;
   likedAt: Timestamp;
 };
 
 export type StoryLikeDoc = {
-  id: string; // userId
+  id: string; 
   userId: string;
   likedAt: Timestamp;
 };
 
 export type StoryView = {
-  id: string; // The userId
+  id: string; 
   userId: string;
   userName: string;
   userAvatarUrl: string;
@@ -280,13 +314,13 @@ export type ReelComment = {
 };
 
 export type ReelLike = {
-  id: string; // userId
+  id: string; 
   userId: string;
   likedAt: Timestamp;
 };
 
 export type ReelCommentLike = {
-  id: string; // userId
+  id: string; 
   userId: string;
   likedAt: Timestamp;
 }
