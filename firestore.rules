@@ -2,7 +2,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
+    
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -12,143 +12,81 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Profil Pengguna
+    function canEditBook(bookId) {
+      let bookData = get(/databases/$(database)/documents/books/$(bookId)).data;
+      return isAuthenticated() && (
+        bookData.authorId == request.auth.uid || 
+        (request.auth.uid in bookData.collaboratorUids) || 
+        isAdmin()
+      );
+    }
+
     match /users/{userId} {
-      allow get, list: if isAuthenticated();
+      allow read, list: if isAuthenticated();
       allow write: if isOwner(userId) || isAdmin();
       
-      match /aiMessages/{msgId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /favorites/{bookId} {
-        allow read: if isAuthenticated();
-        allow write: if isOwner(userId);
-      }
-      
       match /notifications/{notifId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow write: if isAuthenticated(); // Admin needs write, others for interaction notifications
+        allow read, update, delete: if isOwner(userId) || isAdmin();
+        allow create: if isAuthenticated(); 
       }
-      
-      match /followers/{followerId} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated();
-      }
-      
-      match /following/{followedId} {
-        allow read: if isAuthenticated();
-        allow write: if isOwner(userId);
+
+      match /{allSubcollections=**} {
+        allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
-    // Buku & Bab
-    match /books/{bookId} {
-      allow get, list: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
-      
-      match /chapters/{chapterId} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated();
-      }
-      
-      match /comments/{commentId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        allow update, delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
-        
-        match /replies/{replyId} {
-          allow read: if isAuthenticated();
-          allow write: if isAuthenticated();
-        }
-        
-        match /likes/{userId} {
-          allow read: if isAuthenticated();
-          allow write: if isOwner(userId);
-        }
-      }
-    }
-
-    // Reels (Video Permanen)
-    match /reels/{reelId} {
-      allow get, list: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
-      
-      match /comments/{commentId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        allow update, delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
-        
-        match /replies/{replyId} {
-          allow read: if isAuthenticated();
-          allow write: if isAuthenticated();
-        }
-        
-        match /likes/{userId} {
-          allow read: if isAuthenticated();
-          allow write: if isOwner(userId);
-        }
-      }
-      
-      match /likes/{userId} {
-        allow read: if isAuthenticated();
-        allow write: if isOwner(userId);
-      }
-      
-      match /views/{userId} {
-        allow read: if isAuthenticated();
-        allow write: if isOwner(userId);
-      }
-    }
-
-    // Cerita (Story 24 Jam)
-    match /stories/{storyId} {
-      allow get, list: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
-      
-      match /comments/{commentId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        allow update, delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
-      }
-      
-      match /likes/{userId} {
-        allow read: if isAuthenticated();
-        allow write: if isOwner(userId);
-      }
-      
-      match /views/{userId} {
-        allow read: if isAuthenticated();
-        allow write: if isOwner(userId);
-      }
-    }
-
-    // Pesan & Obrolan
     match /chats/{chatId} {
-      allow read: if isAuthenticated() && (request.auth.uid in resource.data.participantUids);
+      allow read, list: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (request.auth.uid in resource.data.participantUids);
       
       match /messages/{messageId} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated();
+        allow read, write, list: if isAuthenticated();
       }
     }
     
-    // Permintaan Penulis
-    match /authorRequests/{requestId} {
-      allow read: if isAuthenticated();
+    match /books/{bookId} {
+      allow read, list: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || isOwner(resource.data.userId);
+      allow update, delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || (request.auth.uid in resource.data.collaboratorUids) || isAdmin());
+      
+      match /{allSub=**} {
+        allow read: if isAuthenticated();
+        allow write: if canEditBook(bookId);
+      }
     }
 
-    // Global Catch-all (Should be at the end)
+    match /reels/{reelId} {
+      allow read, list: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
+      
+      match /{allSub=**} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    match /stories/{storyId} {
+      allow read, list: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
+      
+      match /{allSub=**} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    match /authorRequests/{requestId} {
+      allow read, list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+    }
+
     match /{allPaths=**} {
       allow read, write: if isAdmin();
     }
