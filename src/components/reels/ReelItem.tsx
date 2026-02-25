@@ -4,7 +4,7 @@ import { useFirestore, useUser, useDoc } from '@/firebase';
 import { doc, increment, updateDoc, serverTimestamp, writeBatch, getDoc, collection, addDoc } from 'firebase/firestore';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { Reel, ReelLike, User } from '@/lib/types';
-import { Heart, MessageSquare, Share2, Sparkles, Loader2, Music2, Send as SendIcon, Play, Pause } from 'lucide-react';
+import { Heart, MessageSquare, Share2, Sparkles, Loader2, Music2, Send as SendIcon, Play, Pause, UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
@@ -47,7 +47,6 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
   const { data: likeDoc } = useDoc<ReelLike>(likeRef);
   const isLiked = !!likeDoc;
 
-  // Intersection Observer to track visibility
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -69,7 +68,6 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
     return () => { if (currentRef) observer.unobserve(currentRef); };
   }, [firestore, currentUser, reel.id, reel.authorId]);
 
-  // Unified Play/Pause logic: Pause if not visible, paused by modal, or manually paused
   useEffect(() => {
     if (!videoRef.current) return;
 
@@ -191,18 +189,12 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
     }
   };
 
-  const profileHref = useMemo(() => {
-      const slug = reel.authorName.toLowerCase().replace(/\s+/g, '');
-      return `/profile/${slug}`;
-  }, [reel.authorName]);
-
   return (
     <div 
       ref={containerRef}
       id={`reel-${reel.id}`}
       className="h-full w-full snap-start snap-always relative bg-black flex flex-col items-center justify-center overflow-hidden shrink-0"
     >
-      {/* Main Video Layer */}
       <video
         ref={videoRef}
         src={reel.videoUrl}
@@ -214,7 +206,6 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
         onTimeUpdate={handleTimeUpdate}
       />
 
-      {/* Play/Pause Animation */}
       <AnimatePresence>
         {showPlayPauseAnim && (
             <motion.div 
@@ -230,7 +221,6 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
         )}
       </AnimatePresence>
 
-      {/* Double Tap Heart Animation */}
       <AnimatePresence>
         {showHeartAnim && (
             <motion.div 
@@ -245,11 +235,46 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
         )}
       </AnimatePresence>
 
-      {/* Bottom Gradient Overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80 pointer-events-none" />
 
-      {/* Right Interaction Sidebar */}
-      <div className="absolute right-4 bottom-28 flex flex-col items-center gap-5 z-[105]">
+      {/* Narrative Info - Bottom Left */}
+      <div className="absolute bottom-10 left-6 right-16 space-y-4 z-[105] pointer-events-none">
+        <div className="flex items-center gap-3">
+            <Avatar className="h-11 w-11 border-2 border-white/30 shadow-xl pointer-events-auto active:scale-95 transition-transform">
+                <Link href={`/profile/${reel.authorUsername}`}>
+                    <AvatarImage src={reel.authorAvatarUrl} className="object-cover" />
+                    <AvatarFallback className="bg-primary text-white font-black">{reel.authorName.charAt(0)}</AvatarFallback>
+                </Link>
+            </Avatar>
+            <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                    <Link href={`/profile/${reel.authorUsername}`} className="font-black text-[15px] text-white drop-shadow-md hover:underline pointer-events-auto">{reel.authorName}</Link>
+                    <button className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-[8px] font-black uppercase px-3 py-1 rounded-full pointer-events-auto transition-all active:scale-90 flex items-center gap-1">
+                        <UserPlus className="h-2 w-2" /> Ikuti
+                    </button>
+                </div>
+                <p className="text-[9px] font-bold text-white/60 uppercase tracking-widest mt-0.5">{formatDistanceToNow(reel.createdAt.toDate(), { locale: id, addSuffix: true })}</p>
+            </div>
+        </div>
+        
+        <p className="text-sm font-medium text-white leading-relaxed line-clamp-2 italic drop-shadow-lg pr-4">
+            {reel.caption}
+        </p>
+
+        <div className="flex items-center gap-2 text-white/80 pointer-events-auto group">
+            <div className="p-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/10">
+                <Music2 className="h-3 w-3 animate-[spin_3s_linear_infinite]" />
+            </div>
+            <div className="overflow-hidden max-w-[180px]">
+                <p className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap animate-[marquee_10s_linear_infinite]">
+                    Suara Asli - {reel.authorName} • Karya Elitera • {reel.authorName}
+                </p>
+            </div>
+        </div>
+      </div>
+
+      {/* Interaction Buttons - Right Side */}
+      <div className="absolute right-4 bottom-32 flex flex-col items-center gap-5 z-[105]">
         <div className="flex flex-col items-center gap-1">
             <motion.button 
                 whileTap={{ scale: 0.8 }}
@@ -298,65 +323,9 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
                 <Share2 className="h-5 w-5" />
             </motion.button>
         </div>
-        
-        {/* Animated Music Disk */}
-        <motion.div 
-            animate={{ rotate: 360 }}
-            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-            className="h-10 w-10 rounded-full border-2 border-white/20 bg-zinc-900 p-1 flex items-center justify-center shadow-2xl mt-2 overflow-hidden"
-        >
-            <Avatar className="h-full w-full">
-                <AvatarImage src={reel.authorAvatarUrl} className="object-cover" />
-                <AvatarFallback><Music2 className="h-4 w-4 text-white/40" /></AvatarFallback>
-            </Avatar>
-        </motion.div>
       </div>
 
-      {/* Bottom Info Overlay */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 pb-12 space-y-4 z-[100] pointer-events-none">
-        <div className="flex flex-col items-start gap-4 max-w-[85%]">
-            <div className="flex items-center gap-3 pointer-events-auto">
-                <Link href={profileHref} className="group flex items-center gap-3">
-                    <div className="relative">
-                        <Avatar className="h-11 w-11 border-2 border-white/40 shadow-2xl transition-transform group-hover:scale-110">
-                            <AvatarImage src={reel.authorAvatarUrl} className="object-cover" />
-                            <AvatarFallback className="bg-primary text-white font-black">{reel.authorName?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="absolute -bottom-1 -right-1 bg-primary text-white p-0.5 rounded-full ring-2 ring-black shadow-lg">
-                            <Sparkles className="h-3 w-3" />
-                        </div>
-                    </div>
-                    <div className="flex flex-col">
-                        <p className="text-white font-black text-sm tracking-tight group-hover:text-primary transition-colors drop-shadow-md">
-                            {reel.authorName}
-                        </p>
-                        <p className="text-[9px] text-white/60 font-bold uppercase tracking-widest drop-shadow-sm">
-                            {reel.createdAt ? formatDistanceToNow(reel.createdAt.toDate(), { locale: id, addSuffix: true }) : 'Baru saja'}
-                        </p>
-                    </div>
-                </Link>
-                
-                <button className="pointer-events-auto bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all ml-2 shadow-xl">
-                    Ikuti
-                </button>
-            </div>
-
-            <p className="text-white text-[15px] font-medium leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] line-clamp-3 italic">
-                {reel.caption || "Momen puitis di Elitera."}
-            </p>
-
-            <div className="flex items-center gap-3 text-white/70 bg-black/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/5 max-w-full overflow-hidden shadow-inner">
-                <Music2 className="h-3 w-3 shrink-0" />
-                <div className="overflow-hidden flex-1">
-                    <p className="text-[9px] font-black uppercase tracking-[0.2em] whitespace-nowrap animate-marquee">
-                        Suara Asli - {reel.authorName} • {reel.caption?.substring(0, 30) || 'Karya Elitera'} • {reel.authorName}
-                    </p>
-                </div>
-            </div>
-        </div>
-      </div>
-
-      {/* Progress Bar at the absolute bottom */}
+      {/* Narrative Progress Bar */}
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 z-[110]">
           <motion.div 
             className="h-full bg-primary shadow-[0_0_10px_rgba(59,130,246,0.8)]"
@@ -364,7 +333,6 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
           />
       </div>
 
-      {/* Sheets & Dialogs */}
       <ReelCommentsSheet 
         reelId={reel.id} 
         reelAuthorId={reel.authorId} 
@@ -377,15 +345,10 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
         onOpenChange={setShowShare} 
       />
 
-      <style jsx global>{`
+      <style jsx>{`
         @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-marquee {
-          display: inline-block;
-          animation: marquee 15s linear infinite;
-          padding-right: 50px;
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
         }
       `}</style>
     </div>
