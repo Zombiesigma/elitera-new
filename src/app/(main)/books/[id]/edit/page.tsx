@@ -354,7 +354,7 @@ export default function EditBookPage() {
       
       <main className="flex-1 flex flex-col min-w-0 bg-background relative">
          {!isZenMode && (
-            <header className="h-16 border-b flex items-center justify-between px-4 md:px-6 bg-background/95 backdrop-blur-md z-[110] shrink-0 shadow-sm">
+            <header className="h-auto min-h-[5rem] md:min-h-[4rem] border-b flex items-center justify-between px-4 md:px-6 bg-background/95 backdrop-blur-md z-[110] shrink-0 shadow-sm pt-[max(1.5rem,env(safe-area-inset-top))] md:pt-0">
                 <div className="flex items-center gap-4">
                     <div className="md:hidden">
                       <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
@@ -412,7 +412,7 @@ export default function EditBookPage() {
             </header>
          )}
 
-         {isZenMode && <Button variant="ghost" size="icon" className="fixed top-6 right-6 z-[310] rounded-full bg-background/50 backdrop-blur" onClick={() => setIsZenMode(false)}><Minimize2 className="h-5 w-5" /></Button>}
+         {isZenMode && <Button variant="ghost" size="icon" className="fixed top-[calc(1.5rem+env(safe-area-inset-top))] right-6 z-[310] rounded-full bg-background/50 backdrop-blur" onClick={() => setIsZenMode(false)}><Minimize2 className="h-5 w-5" /></Button>}
 
         <div className={cn("flex-1 overflow-y-auto", isScreenplay && activeTab === 'editor' && !isZenMode && "bg-muted/20")}>
             <AnimatePresence mode="wait">
