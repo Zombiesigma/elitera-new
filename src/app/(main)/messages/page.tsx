@@ -31,7 +31,8 @@ import {
   Mic,
   VideoOff,
   PhoneCall,
-  VideoIcon
+  VideoIcon,
+  PhoneOff
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Chat, ChatMessage, User as AppUser, VideoCallSession } from '@/lib/types';
@@ -164,7 +165,6 @@ export default function MessagesPage() {
   const [isSending, setIsSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   
-  // High-Precision Viewport Handling kawan
   const [viewportHeight, setViewportHeight] = useState('100dvh');
   const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
@@ -177,7 +177,6 @@ export default function MessagesPage() {
   const [fullPreviewUrl, setFullPreviewUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   
-  // Video Call States kawan
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
   const [isCaller, setIsCaller] = useState(false);
   
@@ -331,7 +330,6 @@ export default function MessagesPage() {
         const callsCol = collection(firestore, 'calls');
         const callDoc = doc(callsCol);
         
-        // Buat sesi panggilan di Firestore kawan
         await setDoc(callDoc, {
             callerId: currentUser.uid,
             receiverId: otherParticipant.uid,
@@ -341,7 +339,6 @@ export default function MessagesPage() {
             createdAt: serverTimestamp()
         });
 
-        // Log panggilan di riwayat obrolan kawan
         const batch = writeBatch(firestore);
         const msgRef = doc(collection(firestore, 'chats', selectedChatId, 'messages'));
         
@@ -470,7 +467,6 @@ export default function MessagesPage() {
             isCaller={isCaller} 
             onClose={() => {
                 setActiveCallId(null);
-                // Reset URL kawan agar tidak memicu pemanggilan ulang saat mount
                 const newParams = new URLSearchParams(searchParams);
                 newParams.delete('callId');
                 router.replace(`/messages?${newParams.toString()}`);
@@ -624,17 +620,17 @@ export default function MessagesPage() {
                     <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="rounded-2xl h-10 w-10 text-muted-foreground hover:text-primary hover:bg-primary/5"
+                        className="rounded-full h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5"
                         onClick={handleInitiateCall}
                         disabled={isSending}
                     >
-                        {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4.5 w-4.5"/>}
+                        {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Video className="h-5.5 w-5.5"/>}
                     </Button>
                     
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-2xl h-10 w-10 text-muted-foreground hover:text-primary hover:bg-primary/5">
-                                <MoreVertical className="h-4.5 w-4.5"/>
+                            <Button variant="ghost" size="icon" className="rounded-full h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5">
+                                <MoreVertical className="h-5 w-5"/>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56 rounded-[1.5rem] p-2 border-none shadow-2xl">
@@ -735,10 +731,12 @@ export default function MessagesPage() {
                                                             "h-12 w-12 rounded-full flex items-center justify-center shrink-0 shadow-inner",
                                                             isMe ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
                                                         )}>
-                                                            <VideoIcon className="h-6 w-6" />
+                                                            {msg.status === 'missed' ? <PhoneOff className="h-6 w-6" /> : <VideoIcon className="h-6 w-6" />}
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <p className="font-black text-sm uppercase tracking-widest">Panggilan Video</p>
+                                                            <p className="font-black text-sm uppercase tracking-widest">
+                                                                {msg.status === 'missed' ? 'Panggilan Tak Terjawab' : 'Panggilan Video'}
+                                                            </p>
                                                             <p className={cn("text-[9px] font-bold uppercase tracking-widest opacity-60 mt-0.5", isMe ? "text-white" : "text-primary")}>
                                                                 {isMe ? 'Panggilan Keluar' : 'Panggilan Masuk'}
                                                             </p>
@@ -845,8 +843,8 @@ export default function MessagesPage() {
                         <div className="flex items-end gap-4">
                             <div className="flex-1 relative flex items-center">
                                 <div className="absolute left-2.5 bottom-2.5 md:bottom-3 z-10 flex items-center gap-1">
-                                    <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-2xl text-muted-foreground hover:text-primary active:scale-90 transition-all">
-                                        <ImageIcon className="h-5 w-5" />
+                                    <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-full text-muted-foreground hover:text-primary active:scale-90 transition-all">
+                                        <ImageIcon className="h-5.5 w-5.5" />
                                     </Button>
                                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
                                 </div>
@@ -886,14 +884,14 @@ export default function MessagesPage() {
                                             variant="ghost" 
                                             size="icon" 
                                             onClick={startRecording}
-                                            className="h-11 w-11 rounded-2xl text-muted-foreground hover:text-primary active:scale-90"
+                                            className="h-11 w-11 rounded-full text-muted-foreground hover:text-primary active:scale-90"
                                         >
-                                            <Mic className="h-5.5 w-5.5" />
+                                            <Mic className="h-6 w-6" />
                                         </Button>
                                     ) : isRecording ? (
                                         <Button 
                                             onClick={stopRecording} 
-                                            className="h-11 w-11 md:h-14 md:w-14 rounded-2xl bg-rose-500 hover:bg-rose-600 shadow-xl"
+                                            className="h-11 w-11 md:h-14 md:w-14 rounded-full bg-rose-500 hover:bg-rose-600 shadow-xl"
                                         >
                                             <CheckCheck className="h-6 w-6 text-white" />
                                         </Button>
@@ -901,7 +899,7 @@ export default function MessagesPage() {
                                         <Button 
                                             size="icon" 
                                             onClick={handleSendMessage} 
-                                            className="h-11 w-11 md:h-14 md:w-14 rounded-2xl md:rounded-[1.5rem] shadow-2xl shadow-primary/30 transition-all active:scale-[0.85] bg-primary hover:bg-primary/90" 
+                                            className="h-11 w-11 md:h-14 md:w-14 rounded-full md:rounded-[1.5rem] shadow-2xl shadow-primary/30 transition-all active:scale-[0.85] bg-primary hover:bg-primary/90" 
                                             disabled={isSending}
                                         >
                                             {isSending ? (
@@ -921,7 +919,7 @@ export default function MessagesPage() {
                     <div className="flex items-center gap-3">
                         <Zap className="h-3 w-3 text-primary animate-pulse" />
                         <p className="text-[9px] font-black uppercase tracking-[0.5em] text-muted-foreground whitespace-nowrap">
-                            Enkripsi Sastra Aktif • Elitera System v7.8
+                            Enkripsi Sastra Aktif • Elitera System v9.0
                         </p>
                     </div>
                 </div>
