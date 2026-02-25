@@ -32,7 +32,8 @@ import {
   Trash2,
   Play,
   Pause,
-  Volume2
+  Volume2,
+  Download
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Chat, ChatMessage, User as AppUser } from '@/lib/types';
@@ -41,6 +42,112 @@ import { id } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
 import { uploadFile, uploadAudio } from '@/lib/uploader';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+
+/**
+ * Component khusus untuk memutar Voice Note dengan visualisasi progres fungsional.
+ */
+function VoiceNotePlayer({ audioUrl, isMe }: { audioUrl: string; isMe: boolean }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      const p = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+      setProgress(p || 0);
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) setDuration(audioRef.current.duration);
+  };
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+    setProgress(0);
+    setCurrentTime(0);
+  };
+
+  const formatTime = (time: number) => {
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="flex items-center gap-4 min-w-[220px] py-1">
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        onClick={togglePlay}
+        className={cn(
+          "h-11 w-11 rounded-full flex items-center justify-center shadow-inner shrink-0 transition-all active:scale-90",
+          isMe ? "bg-white/20 hover:bg-white/30 text-white" : "bg-primary/10 text-primary hover:bg-primary/20"
+        )}
+      >
+        {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current ml-0.5" />}
+      </Button>
+      
+      <div className="flex-1 space-y-1.5">
+        <div className="flex gap-0.5 items-end h-7">
+          {Array.from({length: 22}).map((_, j) => {
+            const height = 25 + (Math.sin(j * 0.6) * 35 + 35) * 0.5;
+            const isActive = progress > (j / 22) * 100;
+            return (
+              <div 
+                key={j} 
+                className={cn(
+                  "w-1 rounded-full transition-all duration-300",
+                  isMe 
+                    ? (isActive ? "bg-white shadow-[0_0_8px_white]" : "bg-white/20") 
+                    : (isActive ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-primary/10")
+                )} 
+                style={{ height: `${height}%` }} 
+              />
+            );
+          })}
+        </div>
+        <div className="flex justify-between items-center px-0.5">
+            <p className={cn("text-[8px] font-black uppercase tracking-[0.2em]", isMe ? "text-white/50" : "text-muted-foreground/50")}>
+                {isPlaying ? 'Sedang Diputar' : 'Pesan Suara'}
+            </p>
+            <p className={cn("text-[9px] font-mono font-bold", isMe ? "text-white/70" : "text-primary")}>
+                {formatTime(currentTime)} / {formatTime(duration)}
+            </p>
+        </div>
+      </div>
+      <audio 
+        ref={audioRef} 
+        src={audioUrl} 
+        onTimeUpdate={handleTimeUpdate} 
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={handleEnded}
+        className="hidden" 
+      />
+    </div>
+  );
+}
 
 export default function MessagesPage() {
   const firestore = useFirestore();
@@ -53,6 +160,7 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [viewportHeight, setViewportHeight] = useState('100dvh');
   
   // Media States
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -60,12 +168,36 @@ export default function MessagesPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [fullPreviewUrl, setFullPreviewUrl] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatIdFromUrl = searchParams.get('chatId');
+
+  // Keyboard Awareness Logic: Menjamin area input menempel di atas keyboard HP
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleResize = () => {
+      if (window.visualViewport) {
+        setViewportHeight(`${window.visualViewport.height}px`);
+        // Smooth scroll ke bawah saat keyboard naik
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+    };
+
+    window.visualViewport.addEventListener('resize', handleResize);
+    window.visualViewport.addEventListener('scroll', handleResize);
+    
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('scroll', handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     setSelectedChatId(chatIdFromUrl || null);
@@ -123,27 +255,23 @@ export default function MessagesPage() {
 
       let lastText = "";
 
-      // Handle Image
       if (selectedImage) {
         const imageUrl = await uploadFile(selectedImage);
         messageData = { ...messageData, type: 'image', imageUrl };
-        lastText = "📷 Mengirim foto";
+        lastText = "📷 Foto";
       } 
-      // Handle Voice Note
       else if (audioBlob) {
         const audioFile = new File([audioBlob], `vn-${Date.now()}.mp3`, { type: 'audio/mpeg' });
         const audioUrl = await uploadAudio(audioFile);
         messageData = { ...messageData, type: 'voice_note', audioUrl };
-        lastText = "🎤 Pesan suara";
+        lastText = "🎤 Suara";
       }
-      // Handle Text
       else {
         messageData = { ...messageData, type: 'text', text: newMessage.trim() };
         lastText = newMessage.trim();
       }
       
       batch.set(msgRef, messageData);
-      
       batch.update(doc(firestore, 'chats', selectedChatId), {
         lastMessage: { 
             text: lastText, 
@@ -155,13 +283,12 @@ export default function MessagesPage() {
       
       await batch.commit();
       
-      // Reset States
       setNewMessage("");
       setSelectedImage(null);
       setImagePreview(null);
       setAudioBlob(null);
     } catch (e) {
-        toast({ variant: 'destructive', title: "Gagal Mengirim", description: "Terjadi kendala pada jaringan imajinasi kawan." });
+        toast({ variant: 'destructive', title: "Gagal Mengirim" });
     } finally { setIsSending(false); }
   };
 
@@ -169,7 +296,7 @@ export default function MessagesPage() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        toast({ variant: 'destructive', title: 'File Terlalu Besar', description: 'Maksimal ukuran foto adalah 5MB kawan.' });
+        toast({ variant: 'destructive', title: 'Terlalu Besar', description: 'Maks 5MB kawan.' });
         return;
       }
       setSelectedImage(file);
@@ -197,7 +324,7 @@ export default function MessagesPage() {
       setRecordingTime(0);
       timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
     } catch (err) {
-      toast({ variant: 'destructive', title: "Mikrofon Ditolak", description: "Berikan akses suara untuk mengirim VN kawan." });
+      toast({ variant: 'destructive', title: "Mikrofon Ditolak" });
     }
   };
 
@@ -210,9 +337,22 @@ export default function MessagesPage() {
     }
   };
 
-  const cancelRecording = () => {
-    stopRecording();
-    setAudioBlob(null);
+  const downloadImage = async (url: string) => {
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `elitera-media-${Date.now()}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        toast({ variant: 'success', title: "Gambar Disimpan" });
+    } catch (e) {
+        toast({ variant: 'destructive', title: "Gagal Mengunduh" });
+    }
   };
 
   const filteredThreads = useMemo(() => {
@@ -234,7 +374,7 @@ export default function MessagesPage() {
   if (!currentUser) return null;
 
   return (
-    <div className="h-[calc(100dvh-64px)] -mt-6 -mx-4 md:-mx-6 flex flex-col bg-background relative overflow-hidden">
+    <div className="flex flex-col bg-background relative overflow-hidden transition-all duration-300" style={{ height: viewportHeight }}>
       <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
 
@@ -245,7 +385,7 @@ export default function MessagesPage() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="flex flex-col h-full w-full max-w-2xl mx-auto z-10"
+            className="flex flex-col h-full w-full max-w-2xl mx-auto z-10 pt-6"
           >
             <div className="p-6 md:p-10 space-y-8">
                 <div className="flex items-center justify-between">
@@ -277,7 +417,7 @@ export default function MessagesPage() {
                     {isLoadingThreads ? (
                         <div className="flex flex-col items-center py-20 gap-4 opacity-40">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Menyinkronkan Frekuensi...</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Sinkronisasi...</p>
                         </div>
                     ) : filteredThreads.length === 0 ? (
                         <div className="py-24 text-center opacity-20 flex flex-col items-center gap-4">
@@ -352,10 +492,10 @@ export default function MessagesPage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="flex flex-col h-full w-full max-w-3xl mx-auto bg-background md:border-x shadow-[0_0_80px_rgba(0,0,0,0.15)] relative z-20"
+            className="flex flex-col h-full w-full max-w-3xl mx-auto bg-background md:border-x shadow-2xl relative z-20"
           >
-            <header className="flex items-center h-24 md:h-28 px-4 md:px-10 border-b bg-background/80 backdrop-blur-2xl z-30 shrink-0 shadow-[inset_0_-1px_0_rgba(0,0,0,0.05),0_10px_30px_-10px_rgba(0,0,0,0.05)] pt-[max(1.5rem,env(safe-area-inset-top))]">
-                <Button variant="ghost" size="icon" onClick={handleGoBack} className="rounded-full mr-2 md:mr-6 hover:bg-primary/5 hover:text-primary transition-all active:scale-90 h-11 w-11 shadow-inner">
+            <header className="flex items-center h-24 md:h-28 px-4 md:px-10 border-b bg-background/80 backdrop-blur-2xl z-30 shrink-0 shadow-sm pt-[max(1.5rem,env(safe-area-inset-top))]">
+                <Button variant="ghost" size="icon" onClick={handleGoBack} className="rounded-full mr-2 md:mr-6 hover:bg-primary/5 hover:text-primary transition-all active:scale-90 h-11 w-11">
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
                 
@@ -372,7 +512,7 @@ export default function MessagesPage() {
                             <h4 className="font-black text-sm md:text-lg truncate group-hover:text-primary transition-colors tracking-tight">{otherParticipant.displayName}</h4>
                             <div className="flex items-center gap-2">
                                 <div className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Aktif Sekarang</p>
+                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Pujangga Terhubung</p>
                             </div>
                         </div>
                     </Link>
@@ -381,8 +521,8 @@ export default function MessagesPage() {
                 )}
 
                 <div className="flex items-center gap-1.5 md:gap-3">
-                    <Button variant="ghost" size="icon" className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5 hidden sm:flex shadow-sm border border-transparent hover:border-primary/10"><Phone className="h-4.5 w-4.5"/></Button>
-                    <Button variant="ghost" size="icon" className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5 shadow-sm border border-transparent hover:border-primary/10"><MoreVertical className="h-4.5 w-4.5"/></Button>
+                    <Button variant="ghost" size="icon" className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5 hidden sm:flex"><Phone className="h-4.5 w-4.5"/></Button>
+                    <Button variant="ghost" size="icon" className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5"><MoreVertical className="h-4.5 w-4.5"/></Button>
                 </div>
             </header>
 
@@ -391,27 +531,21 @@ export default function MessagesPage() {
                     {isLoadingMessages ? (
                         <div className="flex flex-col items-center py-20 gap-4 opacity-40">
                             <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Memuat Rekaman Arus...</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Memuat Arus...</p>
                         </div>
                     ) : (
                         <div className="space-y-8">
                             {messages?.map((msg, i) => {
                                 const isMe = msg.senderId === currentUser.uid;
                                 const prevMsg = messages[i-1];
-                                const nextMsg = messages[i+1];
-                                
-                                const isGroupedWithNext = nextMsg && nextMsg.senderId === msg.senderId && 
-                                    (nextMsg.createdAt?.toMillis() || 0) - (msg.createdAt?.toMillis() || 0) < 60000;
-                                
                                 const showTime = !prevMsg || (msg.createdAt?.toMillis() || 0) - (prevMsg.createdAt?.toMillis() || 0) > 300000;
 
                                 return (
                                     <motion.div 
                                         key={msg.id} 
-                                        initial={{ opacity: 0, y: 15, scale: 0.98 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                                        className={cn("space-y-3", isGroupedWithNext ? "mb-[-1.5rem]" : "mb-0")}
+                                        initial={{ opacity: 0, y: 15 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="space-y-3"
                                     >
                                         {showTime && msg.createdAt && (
                                             <div className="text-center py-6">
@@ -422,39 +556,28 @@ export default function MessagesPage() {
                                         )}
                                         <div className={cn("flex group/msg relative", isMe ? "justify-end pl-12" : "justify-start pr-12")}>
                                             <div className={cn(
-                                                "max-w-full shadow-sm transition-all relative group/bubble",
+                                                "max-w-full shadow-sm transition-all relative",
                                                 isMe 
                                                     ? "bg-primary text-white rounded-[2rem] rounded-tr-none shadow-xl shadow-primary/10 ring-1 ring-white/10" 
                                                     : "bg-card border border-border/50 text-foreground rounded-[2rem] rounded-tl-none shadow-md",
                                                 msg.type === 'image' ? "p-2" : "p-5 md:p-6"
                                             )}>
-                                                {msg.type === 'text' && <p className="text-sm md:text-base leading-relaxed font-medium selection:bg-white/20">{msg.text}</p>}
+                                                {msg.type === 'text' && <p className="text-sm md:text-base leading-relaxed font-medium">{msg.text}</p>}
                                                 
                                                 {msg.type === 'image' && (
-                                                    <div className="relative rounded-[1.5rem] overflow-hidden group/image">
+                                                    <div 
+                                                        className="relative rounded-[1.5rem] overflow-hidden group/image cursor-pointer active:scale-[0.98] transition-all shadow-inner"
+                                                        onClick={() => setFullPreviewUrl(msg.imageUrl)}
+                                                    >
                                                         <img src={msg.imageUrl} alt="Chat media" className="max-w-full h-auto max-h-[300px] object-cover" />
-                                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/image:opacity-100 transition-opacity" />
+                                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                            <Search className="text-white h-6 w-6" />
+                                                        </div>
                                                     </div>
                                                 )}
 
                                                 {msg.type === 'voice_note' && (
-                                                    <div className="flex items-center gap-4 min-w-[200px]">
-                                                        <div className={cn(
-                                                            "h-10 w-10 rounded-full flex items-center justify-center shadow-inner",
-                                                            isMe ? "bg-white/20" : "bg-primary/10 text-primary"
-                                                        )}>
-                                                            <Play className="h-4 w-4 fill-current" />
-                                                        </div>
-                                                        <div className="flex-1 space-y-1">
-                                                            <div className="flex gap-0.5 items-end h-4">
-                                                                {Array.from({length: 12}).map((_, j) => (
-                                                                    <div key={j} className={cn("w-1 rounded-full", isMe ? "bg-white/40" : "bg-primary/20")} style={{ height: `${Math.random() * 100}%` }} />
-                                                                ))}
-                                                            </div>
-                                                            <p className={cn("text-[8px] font-black uppercase tracking-widest opacity-60", isMe ? "text-white" : "text-muted-foreground")}>Voice Note • Recording</p>
-                                                        </div>
-                                                        <audio src={msg.audioUrl} className="hidden" />
-                                                    </div>
+                                                    <VoiceNotePlayer audioUrl={msg.audioUrl} isMe={isMe} />
                                                 )}
                                                 
                                                 <div className={cn(
@@ -482,18 +605,15 @@ export default function MessagesPage() {
                             })}
                         </div>
                     )}
-                    <div ref={messagesEndRef} className="h-12" />
+                    <div ref={messagesEndRef} className="h-4" />
                 </div>
             </ScrollArea>
 
-            <div className="p-3 md:p-10 border-t bg-background/95 backdrop-blur-2xl shrink-0 z-30 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.15)] relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                
+            <div className="p-3 md:p-10 border-t bg-background/95 backdrop-blur-2xl shrink-0 z-30 relative pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.15)]">
                 <div className="max-w-4xl mx-auto relative group">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/20 to-primary/30 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700 animate-pulse" />
+                    <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/20 to-primary/30 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
                     
                     <div className="relative flex flex-col gap-4">
-                        {/* Pre-send Previews */}
                         <AnimatePresence>
                             {imagePreview && (
                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="p-2 bg-muted/50 rounded-[1.5rem] border border-primary/10 flex items-center gap-4">
@@ -502,7 +622,6 @@ export default function MessagesPage() {
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-[10px] font-black uppercase tracking-widest text-primary">Visi Sastra Terlampir</p>
-                                        <p className="text-xs font-medium text-muted-foreground">Siap dipublikasikan dalam diskusi kawan.</p>
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={() => { setSelectedImage(null); setImagePreview(null); }} className="text-rose-500 rounded-full h-10 w-10">
                                         <X className="h-5 w-5" />
@@ -514,8 +633,7 @@ export default function MessagesPage() {
                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="p-4 bg-primary/5 rounded-[1.5rem] border border-primary/20 flex items-center gap-4">
                                     <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-white shadow-lg"><Play className="h-4 w-4 fill-current" /></div>
                                     <div className="flex-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Rekaman Gema Tersedia</p>
-                                        <p className="text-xs font-medium text-muted-foreground">Suara kawan tersimpan di memori kawan.</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Rekaman Tersedia</p>
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={() => setAudioBlob(null)} className="text-rose-500 rounded-full h-10 w-10">
                                         <Trash2 className="h-5 w-5" />
@@ -526,9 +644,8 @@ export default function MessagesPage() {
 
                         <div className="flex items-end gap-4">
                             <div className="flex-1 relative flex items-center">
-                                {/* Accessory Console: Left */}
                                 <div className="absolute left-2.5 bottom-2.5 md:bottom-3 z-10 flex items-center gap-1">
-                                    <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-2xl text-muted-foreground hover:text-primary hover:bg-primary/5 active:scale-90 transition-all border border-transparent hover:border-primary/10">
+                                    <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-2xl text-muted-foreground hover:text-primary active:scale-90 transition-all">
                                         <ImageIcon className="h-5 w-5" />
                                     </Button>
                                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
@@ -550,7 +667,7 @@ export default function MessagesPage() {
                                                 />
                                             ))}
                                         </div>
-                                        <Button variant="ghost" size="icon" onClick={cancelRecording} className="text-rose-500 rounded-full h-10 w-10"><X className="h-5 w-5" /></Button>
+                                        <Button variant="ghost" size="icon" onClick={stopRecording} className="text-rose-500 rounded-full h-10 w-10"><X className="h-5 w-5" /></Button>
                                     </div>
                                 ) : (
                                     <Input 
@@ -558,12 +675,11 @@ export default function MessagesPage() {
                                         value={newMessage} 
                                         onChange={(e)=>setNewMessage(e.target.value)} 
                                         onKeyDown={(e)=>e.key==='Enter'&& !e.shiftKey && handleSendMessage()} 
-                                        className="h-16 md:h-20 pl-16 pr-16 rounded-[2.25rem] bg-muted/40 border-none focus-visible:ring-primary/30 focus-visible:bg-background transition-all shadow-[inset_0_2px_10px_rgba(0,0,0,0.05)] text-base md:text-lg font-medium"
+                                        className="h-16 md:h-20 pl-16 pr-16 rounded-[2.25rem] bg-muted/40 border-none focus-visible:ring-primary/30 focus-visible:bg-background transition-all shadow-inner text-base md:text-lg font-medium"
                                         disabled={isSending}
                                     />
                                 )}
 
-                                {/* Accessory Console: Right */}
                                 <div className="absolute right-2.5 bottom-2.5 md:bottom-3 z-10 flex items-center gap-2">
                                     {!newMessage && !selectedImage && !audioBlob && !isRecording ? (
                                         <Button 
@@ -585,13 +701,13 @@ export default function MessagesPage() {
                                         <Button 
                                             size="icon" 
                                             onClick={handleSendMessage} 
-                                            className="h-11 w-11 md:h-14 md:w-14 rounded-2xl md:rounded-[1.5rem] shadow-2xl shadow-primary/30 transition-all active:scale-[0.85] bg-primary hover:bg-primary/90 group/send" 
+                                            className="h-11 w-11 md:h-14 md:w-14 rounded-2xl md:rounded-[1.5rem] shadow-2xl shadow-primary/30 transition-all active:scale-[0.85] bg-primary hover:bg-primary/90" 
                                             disabled={isSending}
                                         >
                                             {isSending ? (
                                                 <Loader2 className="h-6 w-6 animate-spin text-white" />
                                             ) : (
-                                                <Send className="h-6 w-6 text-white group-hover/send:translate-x-1 group-hover/send:-translate-y-1 transition-transform" />
+                                                <Send className="h-6 w-6 text-white" />
                                             )}
                                         </Button>
                                     )}
@@ -602,19 +718,63 @@ export default function MessagesPage() {
                 </div>
                 
                 <div className="hidden md:flex items-center justify-center gap-6 mt-6 opacity-30 select-none grayscale">
-                    <div className="h-[1px] bg-gradient-to-r from-transparent to-border flex-1" />
                     <div className="flex items-center gap-3">
                         <Zap className="h-3 w-3 text-primary animate-pulse" />
                         <p className="text-[9px] font-black uppercase tracking-[0.5em] text-muted-foreground whitespace-nowrap">
-                            Enkripsi Sastra Aktif • Elitera System v5.5
+                            Enkripsi Sastra Aktif • Elitera System v6.5
                         </p>
                     </div>
-                    <div className="h-[1px] bg-gradient-to-l from-transparent to-border flex-1" />
                 </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Full Screen Image Preview Dialog */}
+      <Dialog open={!!fullPreviewUrl} onOpenChange={() => setFullPreviewUrl(null)}>
+        <DialogContent 
+            className="max-w-none w-screen h-[100dvh] p-0 border-none bg-black/95 backdrop-blur-2xl z-[500] flex flex-col items-center justify-center rounded-none"
+            onCloseAutoFocus={(e) => { e.preventDefault(); document.body.style.pointerEvents = 'auto'; }}
+        >
+            <DialogHeader className="sr-only">
+                <DialogTitle>Pratinjau Gambar</DialogTitle>
+                <DialogDescription>Melihat media dalam ukuran penuh</DialogDescription>
+            </DialogHeader>
+            
+            <div className="absolute top-6 left-0 right-0 px-6 flex items-center justify-between z-[510] pt-[max(1.5rem,env(safe-area-inset-top))]">
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-white hover:bg-white/10 rounded-full h-12 w-12 bg-black/20 backdrop-blur-md"
+                    onClick={() => setFullPreviewUrl(null)}
+                >
+                    <X className="h-6 w-6" />
+                </Button>
+                
+                <div className="flex gap-2">
+                    <Button 
+                        variant="ghost" 
+                        className="text-white hover:bg-white/10 rounded-2xl h-12 px-6 font-black uppercase text-[10px] tracking-widest gap-2 bg-black/20 backdrop-blur-md border border-white/10"
+                        onClick={() => fullPreviewUrl && downloadImage(fullPreviewUrl)}
+                    >
+                        <Download className="h-4 w-4" /> Simpan Gambar
+                    </Button>
+                </div>
+            </div>
+
+            <div className="relative w-full h-full flex items-center justify-center p-4">
+                {fullPreviewUrl && (
+                    <motion.img 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        src={fullPreviewUrl} 
+                        className="max-w-full max-h-full object-contain shadow-2xl rounded-xl ring-1 ring-white/10" 
+                        alt="Full preview" 
+                    />
+                )}
+            </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
