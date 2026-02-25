@@ -1,3 +1,4 @@
+
 'use client';
 
 import { initializeFirebase } from '@/firebase';
@@ -9,6 +10,7 @@ import {
   signOut as firebaseSignOut,
   updateProfile,
   sendEmailVerification,
+  sendPasswordResetEmail,
   type User,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -82,6 +84,15 @@ export async function signInWithEmail(email: string, password: string) {
   }
 }
 
+export async function sendPasswordReset(email: string) {
+  try {
+    await sendPasswordResetEmail(auth, email);
+    return { success: true };
+  } catch (error) {
+    return { error };
+  }
+}
+
 export async function resendVerificationEmail() {
     if (auth.currentUser) {
         try {
@@ -108,11 +119,13 @@ export async function signInWithGoogle() {
 export async function signOut() {
   try {
     if (auth.currentUser) {
-        const userStatusRef = doc(firestore, 'users', auth.currentUser.uid);
-        await updateDoc(userStatusRef, {
+        const uid = auth.currentUser.uid;
+        // Non-blocking update to status before signing out
+        const userStatusRef = doc(firestore, 'users', uid);
+        updateDoc(userStatusRef, {
             status: 'offline',
             lastSeen: serverTimestamp(),
-        });
+        }).catch(err => console.warn("Status update on signout failed", err));
     }
     await firebaseSignOut(auth);
   } catch (error) {
