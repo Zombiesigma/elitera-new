@@ -3,11 +3,11 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useUser, useCollection } from '@/firebase';
-import { collection, query, where, doc, updateDoc, limit, orderBy, onSnapshot, getDoc } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, limit, orderBy, onSnapshot } from 'firebase/firestore';
 import type { VideoCallSession } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Phone, PhoneOff, Zap, Sparkles } from 'lucide-react';
+import { Phone, PhoneOff, Zap, Sparkles, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function IncomingCallOverlay() {
@@ -17,6 +17,7 @@ export function IncomingCallOverlay() {
   const [activeCall, setActiveCall] = useState<VideoCallSession | null>(null);
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
+  // Monitor panggilan masuk secara real-time kawan
   const callsQuery = useMemo(() => (
     (firestore && currentUser)
       ? query(
@@ -37,6 +38,7 @@ export function IncomingCallOverlay() {
         const now = Date.now();
         const callTime = call.createdAt?.toMillis() || 0;
         
+        // Panggilan hanya valid jika kurang dari 60 detik kawan
         if (now - callTime < 60000) {
             setActiveCall(call);
         } else {
@@ -47,6 +49,7 @@ export function IncomingCallOverlay() {
     }
   }, [calls]);
 
+  // Pantau perubahan status panggilan aktif kawan
   useEffect(() => {
     if (!activeCall || !firestore) return;
     const unsubscribe = onSnapshot(doc(firestore, 'calls', activeCall.id), (sn) => {
@@ -62,6 +65,7 @@ export function IncomingCallOverlay() {
     return () => unsubscribe();
   }, [activeCall, firestore]);
 
+  // Logika Nada Dering Elitera kawan
   useEffect(() => {
     if (activeCall) {
       if (!ringtoneRef.current) {
@@ -82,11 +86,15 @@ export function IncomingCallOverlay() {
     if (!activeCall || !firestore || !currentUser) return;
     
     try {
+      // 1. Update status sesi di Firestore kawan
       await updateDoc(doc(firestore, 'calls', activeCall.id), { status: 'accepted' });
+      
+      // 2. Arahkan ke ruang obrolan dengan parameter callId kawan
       router.push(`/messages?callId=${activeCall.id}`);
+      
       setActiveCall(null);
     } catch (e) {
-      console.error("Error answering call:", e);
+      console.error("Gagal menjawab panggilan kawan:", e);
     }
   };
 
