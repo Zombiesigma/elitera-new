@@ -44,7 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { generateBookPdf } from "@/app/actions/pdf-generator";
+import { generateBookPdf, generateShotListPdf } from "@/app/actions/pdf-generator";
 
 export default function AdminPage() {
   const { user: currentUser } = useUser();
@@ -124,14 +124,27 @@ export default function AdminPage() {
       
       const bookData = bookSnap.data() as Book;
       
-      toast({ title: "Menghasilkan PDF...", description: "Menyusun karya untuk publikasi resmi." });
+      toast({ title: "Menghasilkan Dokumen...", description: "Menyusun karya dan aset produksi untuk publikasi." });
+      
+      // 1. Generate Main PDF
       const pdfUrl = await generateBookPdf(bookId);
+      
+      // 2. Generate Shot List PDF if screenplay
+      let shotListUrl = "";
+      if (bookData.type === 'screenplay') {
+          try {
+              shotListUrl = await generateShotListPdf(bookId);
+          } catch (e) {
+              console.warn("Shot list generation skipped or failed:", e);
+          }
+      }
 
       const batch = writeBatch(firestore);
       
       batch.update(bookRef, { 
         status: 'published',
-        fileUrl: pdfUrl 
+        fileUrl: pdfUrl,
+        shotListUrl: shotListUrl || null
       });
 
       // Broadcast notifications
@@ -427,7 +440,7 @@ export default function AdminPage() {
                                             <TableCell className="text-right px-6 space-x-1.5 whitespace-nowrap">
                                                 <Button size="sm" onClick={() => handleApproveBook(book.id, book.title)} disabled={!!processingId} className="rounded-full h-8 px-4 text-[10px] gap-1.5 shadow-md">
                                                     {processingId === book.id ? <Loader2 className="h-3 w-3 animate-spin"/> : <FileText className="h-3 w-3" />}
-                                                    Terbitkan PDF
+                                                    Terbitkan Aset
                                                 </Button>
                                                 <Button variant="outline" size="sm" className="rounded-full h-8 px-4 text-[10px]" asChild><Link href={`/books/${book.id}`}>Pratinjau</Link></Button>
                                             </TableCell>
