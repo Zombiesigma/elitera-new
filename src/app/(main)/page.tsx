@@ -7,7 +7,7 @@ import type { Book, Story, User as AppUser, Follow } from '@/lib/types';
 import { BookCarousel } from '@/components/BookCarousel';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Sparkles, ArrowRight, BookOpen, PenTool, TrendingUp, Search, Star, Flame, ChevronRight, X as XIcon, Users, Trophy, Crown, Cpu } from 'lucide-react';
+import { Sparkles, BookOpen, PenTool, TrendingUp, Search, Star, Flame, Trophy, Crown, Cpu, ArrowRight, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StoriesReel } from '@/components/stories/StoriesReel';
 import { cn } from '@/lib/utils';
@@ -17,10 +17,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 const WELCOME_HERO_KEY = 'hasSeenWelcomeHero';
 
 const CATEGORIES = [
-  { name: 'Novel', slug: 'novel', icon: BookOpen, color: 'text-blue-500', bg: 'bg-blue-500/5' },
-  { name: 'Fiksi Ilmiah', slug: 'sci-fi', icon: Sparkles, color: 'text-purple-500', bg: 'bg-purple-500/5' },
-  { name: 'Fantasi', slug: 'fantasy', icon: TrendingUp, color: 'text-emerald-500', bg: 'bg-emerald-500/5' },
-  { name: 'Horor', slug: 'horror', icon: Search, color: 'text-rose-500', bg: 'bg-rose-500/5' },
+  { name: 'Novel', slug: 'novel', icon: BookOpen, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+  { name: 'Fiksi Ilmiah', slug: 'sci-fi', icon: Sparkles, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+  { name: 'Fantasi', slug: 'fantasy', icon: TrendingUp, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+  { name: 'Horor', slug: 'horror', icon: Search, color: 'text-rose-500', bg: 'bg-rose-500/10' },
 ];
 
 export default function HomePage() {
@@ -72,19 +72,19 @@ export default function HomePage() {
   const usersQuery = useMemo(() => (
     (firestore && currentUser) ? query(collection(firestore, 'users'), where('role', 'in', ['penulis', 'admin'])) : null
   ), [firestore, currentUser]);
-  const { data: allAuthors, isLoading: areAuthorsLoading } = useCollection<AppUser>(usersQuery);
+  const { data: areAuthors, isLoading: areAuthorsLoading } = useCollection<AppUser>(usersQuery);
 
   const topAuthors = useMemo(() => {
-    if (!allAuthors || !rawBooks) return [];
+    if (!areAuthors || !rawBooks) return [];
     
-    return allAuthors.map(author => {
+    return areAuthors.map(author => {
         const bookCount = rawBooks.filter(b => b.authorId === author.uid).length;
         return { ...author, bookCount };
     })
     .filter(a => a.bookCount > 0)
     .sort((a, b) => b.bookCount - a.bookCount)
     .slice(0, 10);
-  }, [allAuthors, rawBooks]);
+  }, [areAuthors, rawBooks]);
 
   const popularBooks = useMemo(() => {
     if (!rawBooks) return null;
@@ -123,98 +123,80 @@ export default function HomePage() {
   }, [allStories, followingIds, currentUser]);
 
   return (
-    <div className="relative pb-24 overflow-x-hidden w-full">
-      <div className="absolute top-[-100px] left-[-100px] w-[600px] h-[600px] bg-primary/10 rounded-full blur-[140px] -z-10 pointer-events-none animate-pulse" />
-      <div className="absolute top-[30%] right-[-100px] w-[500px] h-[500px] bg-accent/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
-      <div className="absolute bottom-[-100px] left-[20%] w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -z-10 pointer-events-none" />
+    <div className="relative pb-32 overflow-x-hidden w-full max-w-lg mx-auto bg-background/50">
+      {/* Dynamic Background */}
+      <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-primary/10 via-background to-transparent -z-10" />
 
-      <div className="space-y-16 w-full max-w-full overflow-x-hidden">
-        <motion.section 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-20 w-full pt-2"
-        >
-          <div className="flex items-center gap-3 mb-6 px-1">
-             <div className="relative">
-                <div className="absolute inset-0 bg-primary/40 blur-md rounded-full animate-ping" />
-                <div className="relative h-2 w-2 rounded-full bg-primary" />
-             </div>
-             <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/60">Gema Inspirasi Terkini</h2>
+      <div className="space-y-12 w-full pt-4">
+        {/* Stories Section */}
+        <section className="relative z-20 w-full px-4">
+          <div className="flex items-center gap-2 mb-5 px-1">
+             <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+             <h2 className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/40">Momen Puitis</h2>
           </div>
           <StoriesReel 
               stories={filteredStories} 
               isLoading={areStoriesLoading || isProfileLoading}
               currentUserProfile={userProfile}
           />
-        </motion.section>
+        </section>
 
+        {/* Hero Section */}
         <AnimatePresence mode="wait">
           {showHero && (
             <motion.section
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, y: -20, filter: 'blur(10px)' }}
-              className="relative rounded-[2.5rem] md:rounded-[3.5rem] overflow-hidden shadow-[0_40px_100px_-15px_rgba(0,0,0,0.3)] bg-zinc-950 p-8 md:p-16 text-center flex flex-col items-center mx-1 border border-white/5"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative rounded-[2.5rem] overflow-hidden shadow-2xl bg-zinc-950 mx-4 border border-white/5"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-accent/20 to-indigo-900/40 opacity-90" />
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
+              <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-20 grayscale" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/40 via-black/60 to-black/95" />
               
-              <div className="relative z-10 space-y-10 w-full max-w-2xl">
-                <motion.div 
-                    initial={{ y: 10, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full bg-white/5 text-white text-[9px] font-black uppercase tracking-[0.3em] backdrop-blur-xl border border-white/10 shadow-2xl"
-                >
-                  <Cpu className="h-3.5 w-3.5 text-primary animate-pulse" /> Evolusi Sastra Digital
-                </motion.div>
+              <div className="relative z-10 p-10 text-center space-y-8">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 backdrop-blur-md border border-white/10 text-white text-[9px] font-black uppercase tracking-widest">
+                  <Cpu className="h-3 w-3 text-primary animate-pulse" /> Future of Literacy
+                </div>
                 
                 <div className="space-y-4">
-                    <h1 className="text-4xl md:text-7xl font-headline font-black text-white leading-[1.1] tracking-tighter">
-                      Abadikan <span className="italic text-primary underline decoration-primary/20 underline-offset-8">Jejakmu</span> <br/> Dalam Aksara.
+                    <h1 className="text-4xl font-headline font-black text-white leading-tight tracking-tight text-balance">
+                      Rumah Bagi <br/> <span className="text-primary italic underline decoration-primary/20">Imajinasi.</span>
                     </h1>
-                    <p className="text-sm md:text-lg text-white/60 font-medium leading-relaxed max-w-md mx-auto italic">
-                      "Di mana setiap kata menemukan rumahnya, dan setiap imajinasi menjadi mahakarya abadi."
+                    <p className="text-sm text-white/60 font-medium italic max-w-[220px] mx-auto leading-relaxed">
+                      "Tempat di mana setiap jejak aksaramu abadi dalam semesta Elitera."
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4 w-full justify-center pt-6">
-                  <Button className="rounded-full h-14 md:h-16 px-10 bg-white text-zinc-950 hover:bg-zinc-100 font-black text-xs md:text-sm uppercase tracking-[0.2em] shadow-[0_20px_50px_-10px_rgba(255,255,255,0.2)] transition-all hover:scale-105 active:scale-95" asChild>
-                    <Link href="/search?q=">Mulai Eksplorasi</Link>
+                <div className="flex flex-col gap-3 w-full pt-4">
+                  <Button className="rounded-2xl h-14 bg-white text-zinc-950 hover:bg-zinc-100 font-black text-xs uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95 group" asChild>
+                    <Link href="/search?q=">Jelajahi Karya <ChevronRight className="ml-1 h-4 w-4 group-hover:translate-x-1 transition-transform" /></Link>
                   </Button>
-                  <Button variant="ghost" onClick={handleDismissHero} className="text-white/40 hover:text-white hover:bg-white/5 h-14 md:h-16 rounded-full text-[10px] font-black uppercase tracking-[0.3em] transition-all">
-                    Lewati Sambutan
-                  </Button>
+                  <button onClick={handleDismissHero} className="text-white/30 text-[9px] font-black uppercase tracking-widest hover:text-white/60 transition-colors">
+                    Mungkin Nanti
+                  </button>
                 </div>
               </div>
             </motion.section>
           )}
         </AnimatePresence>
 
-        <section className="space-y-8 w-full">
-          <div className="flex items-center gap-4 px-1">
-            <h2 className="text-xl md:text-2xl font-headline font-black tracking-tight flex items-center gap-3 whitespace-nowrap">
-              <TrendingUp className="h-6 w-6 text-primary" /> Genre <span className="text-primary italic">Pilihan</span>
+        {/* Categories Grid */}
+        <section className="space-y-6 px-4">
+          <div className="flex items-center gap-3 px-1">
+            <h2 className="text-lg font-headline font-black tracking-tight">
+              Kategori <span className="text-primary italic">Utama</span>
             </h2>
             <div className="h-px bg-border/50 flex-1" />
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 gap-4">
             {CATEGORIES.map((cat, i) => (
-              <motion.div
-                key={cat.slug}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-              >
+              <motion.div key={cat.slug} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
                 <Link href={`/search?q=${cat.slug}`} className="block group">
-                  <div className="bg-card/40 backdrop-blur-md border border-border/50 rounded-[2rem] p-6 md:p-10 flex flex-col items-center gap-5 text-center transition-all duration-500 group-hover:shadow-2xl group-hover:shadow-primary/5 group-hover:-translate-y-2 relative overflow-hidden">
-                    <div className="absolute -top-10 -right-10 w-24 h-24 bg-primary/5 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700" />
-                    <div className={cn("p-4 md:p-6 rounded-2xl md:rounded-[1.75rem] shadow-inner transition-all duration-500 group-hover:bg-primary group-hover:text-white group-hover:rotate-6", cat.bg, cat.color)}>
-                      <cat.icon className="h-6 w-6 md:h-8 md:w-8" />
+                  <div className="bg-card/50 backdrop-blur-md border border-border/50 rounded-3xl p-6 flex flex-col items-center gap-4 text-center transition-all group-hover:shadow-xl group-hover:-translate-y-1 active:scale-95 ring-1 ring-white/10">
+                    <div className={cn("p-4 rounded-2xl shadow-inner transition-all group-hover:scale-110", cat.bg, cat.color)}>
+                      <cat.icon className="h-6 w-6" />
                     </div>
-                    <span className="font-black text-[10px] md:text-xs tracking-[0.2em] uppercase opacity-60 group-hover:opacity-100 transition-opacity">{cat.name}</span>
+                    <span className="font-black text-[9px] tracking-[0.25em] uppercase text-foreground/60">{cat.name}</span>
                   </div>
                 </Link>
               </motion.div>
@@ -222,60 +204,45 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="space-y-8">
-            <div className="flex items-center justify-between px-1">
-                <div className="space-y-1">
-                    <h2 className="text-2xl md:text-3xl font-headline font-black tracking-tight flex items-center gap-3">
-                        <Trophy className="h-7 w-7 text-yellow-500" /> Pujangga <span className="text-primary italic">Terproduktif</span>
-                    </h2>
-                    <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-[0.3em]">Kurasi Penulis Paling Berdedikasi</p>
-                </div>
-                <Button variant="outline" asChild className="rounded-full font-black text-[10px] uppercase tracking-[0.2em] border-2 h-10 px-6 hover:bg-primary hover:text-white hover:border-primary transition-all shadow-sm">
-                    <Link href="/join-author">Direktori <ChevronRight className="ml-2 h-3.5 w-3.5" /></Link>
-                </Button>
+        {/* Top Authors */}
+        <section className="space-y-6">
+            <div className="flex items-center justify-between px-5">
+                <h2 className="text-lg font-headline font-black tracking-tight">
+                    Pujangga <span className="text-primary italic">Pilihan</span>
+                </h2>
+                <Link href="/join-author" className="text-[9px] font-black text-primary uppercase tracking-[0.2em] flex items-center gap-1 hover:gap-2 transition-all">
+                    Lihat Semua <ChevronRight className="h-3 w-3" />
+                </Link>
             </div>
 
-            <div className="flex items-stretch gap-5 md:gap-8 overflow-x-auto no-scrollbar px-1 pb-8 pt-2">
+            <div className="flex items-stretch gap-4 overflow-x-auto no-scrollbar px-5 pb-2">
                 {(areAuthorsLoading || areBooksLoading) ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="w-40 md:w-56 flex-shrink-0 space-y-6">
-                            <Skeleton className="aspect-square w-full rounded-full bg-muted/50" />
-                            <Skeleton className="h-4 w-2/3 bg-muted/50 rounded-full mx-auto" />
-                        </div>
+                    Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-44 w-32 rounded-[2.5rem] flex-shrink-0" />
                     ))
                 ) : topAuthors.map((author, idx) => (
-                    <motion.div 
-                        key={author.uid}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: idx * 0.05 }}
-                        className="flex-shrink-0"
-                    >
+                    <motion.div key={author.uid} className="flex-shrink-0">
                         <Link href={`/profile/${author.username.toLowerCase()}`}>
-                            <div className={cn(
-                                "w-40 md:w-56 p-6 md:p-8 rounded-[2.5rem] md:rounded-[3.5rem] bg-card/40 backdrop-blur-xl border border-border/50 hover:border-primary/30 transition-all duration-500 group flex flex-col items-center text-center gap-6 relative shadow-lg hover:shadow-2xl hover:-translate-y-2",
-                                idx === 0 ? "ring-2 ring-yellow-500/20" : ""
-                            )}>
+                            <div className="w-32 p-6 rounded-[2.5rem] bg-card border border-border/50 flex flex-col items-center text-center gap-4 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
+                                <div className={cn(
+                                    "absolute top-0 left-0 right-0 h-1 opacity-20",
+                                    idx === 0 ? "bg-yellow-500" : idx === 1 ? "bg-zinc-400" : idx === 2 ? "bg-orange-400" : "bg-primary"
+                                )} />
                                 <div className="relative">
-                                    <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full scale-125 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                                    <Avatar className="h-20 w-20 md:h-28 md:w-28 border-4 border-background shadow-2xl ring-1 ring-border/50 transition-transform duration-700 group-hover:scale-110">
+                                    <Avatar className="h-16 w-16 border-2 border-background shadow-xl ring-1 ring-border/50 transition-transform group-hover:scale-105">
                                         <AvatarImage src={author.photoURL} className="object-cover" />
-                                        <AvatarFallback className="bg-primary/5 text-primary text-2xl font-black uppercase italic">{author.displayName.charAt(0)}</AvatarFallback>
+                                        <AvatarFallback className="text-xl font-black bg-primary/5 text-primary italic">{author.displayName.charAt(0)}</AvatarFallback>
                                     </Avatar>
                                     <div className={cn(
-                                        "absolute -top-2 -right-2 p-2 rounded-full shadow-2xl border-2 border-background flex items-center justify-center transition-all duration-500 group-hover:scale-110",
+                                        "absolute -top-1 -right-1 p-1 rounded-full border-2 border-background shadow-lg",
                                         idx === 0 ? "bg-yellow-500 text-white" : idx === 1 ? "bg-zinc-400 text-white" : idx === 2 ? "bg-orange-400 text-white" : "bg-muted text-muted-foreground"
                                     )}>
-                                        {idx === 0 ? <Crown className="h-4 w-4" /> : <span className="text-[10px] font-black px-1">#{idx + 1}</span>}
+                                        {idx === 0 ? <Crown className="h-3 w-3" /> : <span className="text-[8px] font-black px-1">#{idx + 1}</span>}
                                     </div>
                                 </div>
-                                <div className="space-y-2 w-full">
-                                    <p className="font-black text-sm md:text-base truncate group-hover:text-primary transition-colors tracking-tight">{author.displayName}</p>
-                                    <div className="flex items-center justify-center gap-2 text-primary/60 bg-primary/5 px-3 py-1 rounded-full w-fit mx-auto border border-primary/10">
-                                        <BookOpen className="h-3 w-3" />
-                                        <span className="text-[9px] font-black uppercase tracking-widest">{author.bookCount} Mahakarya</span>
-                                    </div>
+                                <div className="space-y-1 w-full">
+                                    <p className="font-black text-[10px] uppercase tracking-tighter truncate w-full group-hover:text-primary transition-colors">{author.displayName}</p>
+                                    <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest">{author.bookCount} Karya</p>
                                 </div>
                             </div>
                         </Link>
@@ -284,66 +251,46 @@ export default function HomePage() {
             </div>
         </section>
 
-        <div className="space-y-20 w-full">
-          <section className="space-y-8">
-            <div className="flex items-center justify-between px-1">
-                <div className="space-y-1">
-                    <h2 className="text-2xl md:text-3xl font-headline font-black tracking-tight flex items-center gap-3">
-                        <Flame className="h-7 w-7 text-orange-500" /> Sedang <span className="text-primary italic">Hangat</span>
-                    </h2>
-                    <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-[0.3em]">Karya Paling Banyak Dinikmati</p>
-                </div>
-                <Button variant="ghost" asChild className="rounded-full font-black text-[9px] uppercase tracking-[0.2em] text-primary h-10 px-4 hover:bg-primary/5 transition-all">
-                    <Link href="/search?q=">Eksplorasi Semua <ChevronRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-            </div>
+        {/* Content Sections */}
+        <div className="space-y-12 px-4">
+          <section className="space-y-6">
+            <h2 className="text-lg font-headline font-black tracking-tight flex items-center gap-2">
+                <Flame className="h-5 w-5 text-orange-500" /> Paling <span className="text-primary italic">Dicari</span>
+            </h2>
             <BookCarousel title="" books={popularBooks} isLoading={areBooksLoading} />
           </section>
 
-          <section className="space-y-8">
-            <div className="flex items-center justify-between px-1">
-                <div className="space-y-1">
-                    <h2 className="text-2xl md:text-3xl font-headline font-black tracking-tight flex items-center gap-3">
-                        <Star className="h-7 w-7 text-yellow-500" /> Rilisan <span className="text-primary italic">Baru</span>
-                    </h2>
-                    <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-[0.3em]">Imajinasi Segar Para Pujangga</p>
-                </div>
-                <Button variant="ghost" asChild className="rounded-full font-black text-[9px] uppercase tracking-[0.2em] text-primary h-10 px-4 hover:bg-primary/5 transition-all">
-                    <Link href="/search?q=">Eksplorasi Semua <ChevronRight className="ml-1 h-3 w-3" /></Link>
-                </Button>
-            </div>
+          <section className="space-y-6">
+            <h2 className="text-lg font-headline font-black tracking-tight flex items-center gap-2">
+                <Star className="h-5 w-5 text-yellow-500" /> Terbitan <span className="text-primary italic">Terbaru</span>
+            </h2>
             <BookCarousel title="" books={newBooks} isLoading={areBooksLoading} />
           </section>
         </div>
 
+        {/* Footer CTA */}
         {!isProfileLoading && userProfile?.role === 'pembaca' && (
           <motion.section 
-            initial={{ opacity: 0, scale: 0.98 }}
-            whileInView={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-            className="relative bg-zinc-950 border border-white/5 rounded-[3rem] md:rounded-[4.5rem] p-12 md:p-24 text-center space-y-8 overflow-hidden shadow-2xl mx-1"
+            className="mx-4 mb-10"
           >
-            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/20 rounded-full blur-[140px] pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-accent/10 rounded-full blur-[120px] pointer-events-none" />
-            
-            <div className="relative z-10 space-y-10 max-w-xl mx-auto">
-                <div className="p-6 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2rem] w-fit mx-auto shadow-2xl">
-                    <PenTool className="h-12 w-12 text-primary animate-bounce" />
-                </div>
-                <div className="space-y-4">
-                    <h2 className="text-3xl md:text-6xl font-headline font-black text-white leading-tight tracking-tight">
-                        Ukir Sejarah <br/> <span className="text-primary italic underline decoration-primary/20 underline-offset-8">Sastramu.</span>
-                    </h2>
-                    <p className="text-white/40 text-sm md:text-lg font-medium leading-relaxed italic">
-                        "Setiap karya besar dimulai dari satu keberanian untuk menulis. Elitera siap menjadi saksi bisu lahirnya mahakaryamu."
+            <div className="bg-zinc-950 rounded-[2.5rem] p-12 text-center space-y-8 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative border border-white/5">
+                <div className="absolute top-0 right-0 w-40 h-40 bg-primary/20 rounded-full blur-[80px]" />
+                <div className="absolute bottom-0 left-0 w-40 h-40 bg-accent/10 rounded-full blur-[80px]" />
+                
+                <div className="relative z-10 space-y-4">
+                    <div className="p-4 rounded-3xl bg-primary/10 w-fit mx-auto border border-primary/20 mb-4">
+                        <PenTool className="h-8 w-8 text-primary animate-bounce" />
+                    </div>
+                    <h2 className="text-2xl font-headline font-black text-white">Jadi Arsitek Narasi.</h2>
+                    <p className="text-white/40 text-xs font-medium italic max-w-[200px] mx-auto">
+                        "Setiap ide besar bermula dari satu kata. Bagikan duniamu sekarang."
                     </p>
                 </div>
-                <Button size="lg" className="rounded-full w-full h-16 md:h-20 font-black text-sm md:text-base uppercase tracking-[0.3em] bg-primary text-white shadow-[0_25px_60px_-15px_rgba(var(--primary),0.4)] transition-all hover:scale-105 active:scale-95 group overflow-hidden relative" asChild>
-                  <Link href="/join-author">
-                    <span className="relative z-10 flex items-center gap-3">Ajukan Status Penulis <Sparkles className="h-5 w-5 group-hover:rotate-12 transition-transform" /></span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary opacity-0 group-hover:opacity-10 transition-opacity duration-700" />
-                  </Link>
+                <Button size="lg" className="rounded-2xl w-full h-16 font-black text-xs uppercase tracking-[0.2em] bg-primary shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95 group" asChild>
+                  <Link href="/join-author">Daftar Penulis <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" /></Link>
                 </Button>
             </div>
           </motion.section>
