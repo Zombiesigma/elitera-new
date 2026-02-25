@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -11,16 +12,28 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Logo } from '@/components/Logo';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { signInWithEmail, signInWithGoogle } from '@/firebase/auth/service';
+import { signInWithEmail, signInWithGoogle, sendPasswordReset } from '@/firebase/auth/service';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Loader2, Mail, Lock, Sparkles, Chrome, Eye, EyeOff, ChevronLeft } from 'lucide-react';
+import { Loader2, Mail, Lock, Sparkles, Chrome, Eye, EyeOff, ChevronLeft, KeyRound } from 'lucide-react';
 import { useAuthRedirect } from '@/hooks/use-auth-redirect';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Email tidak valid.' }),
   password: z.string().min(1, { message: 'Kata sandi tidak boleh kosong.' }),
+});
+
+const resetSchema = z.object({
+  email: z.string().email({ message: 'Email tidak valid.' }),
 });
 
 export default function LoginPage() {
@@ -29,12 +42,21 @@ export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isResetting, setIsReset牽] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
       password: '',
+    },
+  });
+
+  const resetForm = useForm<z.infer<typeof resetSchema>>({
+    resolver: zodResolver(resetSchema),
+    defaultValues: {
+      email: '',
     },
   });
 
@@ -80,6 +102,27 @@ export default function LoginPage() {
       });
       router.push('/');
     }
+  }
+
+  async function onResetSubmit(values: z.infer<typeof resetSchema>) {
+    setIsResetting(true);
+    const { error } = await sendPasswordReset(values.email);
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Mengirim',
+        description: 'Pastikan email terdaftar di sistem kami.',
+      });
+    } else {
+      toast({
+        variant: 'success',
+        title: 'Email Terkirim',
+        description: 'Silakan periksa kotak masuk Anda untuk tautan pemulihan.',
+      });
+      setIsResetDialogOpen(false);
+      resetForm.reset();
+    }
+    setIsResetting(false);
   }
 
   return (
@@ -142,7 +185,13 @@ export default function LoginPage() {
                     <FormItem>
                       <div className="flex items-center justify-between ml-1">
                         <FormLabel className="font-bold text-[10px] uppercase tracking-widest opacity-70">Kata Sandi</FormLabel>
-                        <Link href="#" className="text-[10px] font-black uppercase text-primary hover:underline">Lupa?</Link>
+                        <button 
+                          type="button" 
+                          onClick={() => setIsResetDialogOpen(true)}
+                          className="text-[10px] font-black uppercase text-primary hover:underline"
+                        >
+                          Lupa?
+                        </button>
                       </div>
                       <FormControl>
                         <div className="relative group">
@@ -200,6 +249,79 @@ export default function LoginPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent className="max-w-[90vw] md:max-w-md rounded-[2.5rem] border-none shadow-2xl p-8 bg-background/95 backdrop-blur-xl">
+          <DialogHeader>
+            <div className="mx-auto bg-primary/10 p-4 rounded-2xl w-fit mb-4">
+              <KeyRound className="h-8 w-8 text-primary" />
+            </div>
+            <DialogTitle className="font-headline text-2xl font-black text-center">Pulihkan <span className="text-primary italic">Akses.</span></DialogTitle>
+            <DialogDescription className="text-center font-medium leading-relaxed pt-2">
+              Masukkan email Anda dan kami akan mengirimkan tautan sihir untuk mengatur ulang kata sandi Anda.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...resetForm}>
+            <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-6 mt-4">
+              <FormField
+                control={resetForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-bold text-[10px] uppercase tracking-widest opacity-70">Alamat Email</FormLabel>
+                    <FormControl>
+                      <div className="relative group">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                        <Input placeholder="anda@email.com" {...field} className="h-12 pl-11 rounded-xl bg-muted/30 border-none focus-visible:ring-primary/20 font-medium" />
+                      </div>
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => setIsResetDialogOpen(false)} 
+                  className="rounded-full font-bold h-12 flex-1"
+                >
+                  Batal
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="rounded-full font-black h-12 flex-1 shadow-xl shadow-primary/20" 
+                  disabled={isResetting}
+                >
+                  {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SendIcon className="mr-2 h-4 w-4" />}
+                  Kirim Tautan
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function SendIcon({ className }: { className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="24" height="24" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+    >
+      <path d="m22 2-7 20-4-9-9-4Z"/>
+      <path d="M22 2 11 13"/>
+    </svg>
   );
 }
