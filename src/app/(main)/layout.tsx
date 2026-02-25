@@ -13,8 +13,12 @@ export default function MainAppLayout({
 }) {
   const pathname = usePathname();
   
-  // Deteksi rute yang memerlukan tata letak layar penuh tanpa gulir utama (Messenger & AI)
-  const isImmersiveRoute = pathname?.startsWith('/messages') || pathname?.startsWith('/ai') || pathname?.startsWith('/reels');
+  // Deteksi rute yang memerlukan tata letak layar penuh tanpa gulir utama (Messenger, AI, Reels, Reader, & Editor)
+  const isImmersiveRoute = pathname?.startsWith('/messages') || 
+                           pathname?.startsWith('/ai') || 
+                           pathname?.startsWith('/reels') ||
+                           pathname?.includes('/read') ||
+                           pathname?.includes('/edit');
 
   return (
     <ProtectedLayout>
@@ -22,7 +26,9 @@ export default function MainAppLayout({
         "relative flex flex-col bg-background w-full",
         isImmersiveRoute ? "h-screen overflow-hidden" : "min-h-screen"
       )}>
-        <Header />
+        {/* Sembunyikan header utama di rute imersif (termasuk editor & pembaca) agar fokus maksimal */}
+        {!isImmersiveRoute && <Header />}
+        
         <main className={cn(
           "flex-1 flex flex-col relative w-full",
           isImmersiveRoute ? "overflow-hidden" : "overflow-y-auto"
@@ -35,9 +41,13 @@ export default function MainAppLayout({
           </div>
         </main>
         
-        {/* Spacer bawah hanya muncul jika bukan rute imersif */}
-        {!isImmersiveRoute && <div className="h-12 md:hidden shrink-0" />} 
-        <MobileNav />
+        {/* Navigasi bawah disembunyikan di rute imersif termasuk halaman baca dan editor */}
+        {!isImmersiveRoute && (
+          <>
+            <div className="h-12 md:hidden shrink-0" /> 
+            <MobileNav />
+          </>
+        )}
       </div>
     </ProtectedLayout>
   );
