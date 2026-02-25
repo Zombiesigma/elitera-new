@@ -47,7 +47,7 @@ export function ReelsClient() {
 
   if (isLoading) {
     return (
-      <div className="h-[calc(100dvh-64px)] -mt-6 -mx-4 md:-mx-6 flex flex-col items-center justify-center gap-6 bg-zinc-950 overflow-hidden">
+      <div className="h-dvh flex flex-col items-center justify-center gap-6 bg-zinc-950 overflow-hidden">
         <div className="relative">
             <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full scale-150 animate-pulse" />
             <Loader2 className="h-12 w-12 animate-spin text-primary relative z-10" />
@@ -61,15 +61,14 @@ export function ReelsClient() {
   }
 
   return (
-    <div className="h-[calc(100dvh-64px)] -mt-6 -mx-4 md:-mx-6 bg-black overflow-y-auto snap-y snap-mandatory no-scrollbar rounded-none shadow-2xl relative scroll-smooth">
+    <div className="h-dvh -mx-4 md:-mx-6 bg-black overflow-y-auto snap-y snap-mandatory no-scrollbar rounded-none shadow-2xl relative scroll-smooth">
       
-      {/* Floating Global Controls - Subtler Glassmorphism Plus Button */}
-      <div className="fixed top-24 left-6 z-[110] flex items-center pointer-events-none">
+      <div className="fixed top-8 left-6 z-[110] flex items-center pointer-events-none">
           <motion.button 
             whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.05)' }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsCreateModalOpen(true)}
-            className="pointer-events-auto bg-white/[0.02] backdrop-blur-3xl border border-white/5 p-4 rounded-[2rem] text-white/20 hover:text-white/60 transition-all"
+            className="pointer-events-auto bg-white/[0.02] backdrop-blur-3xl border border-white/5 p-4 rounded-[2rem] text-white/20 hover:text-white/60 transition-all shadow-2xl"
           >
             <Plus className="h-5 w-5" />
           </motion.button>
