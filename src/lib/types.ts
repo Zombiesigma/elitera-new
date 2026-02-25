@@ -178,7 +178,7 @@ export type VideoCallMessage = {
     id: string;
     type: 'video_call';
     callId: string;
-    status: 'calling' | 'missed' | 'ended';
+    status: 'calling' | 'missed' | 'ended' | 'accepted';
 };
 
 export type BookShareMessage = {
