@@ -3,11 +3,11 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useUser, useCollection } from '@/firebase';
-import { collection, query, where, doc, updateDoc, limit, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, limit, orderBy, onSnapshot, serverTimestamp, addDoc } from 'firebase/firestore';
 import type { VideoCallSession } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Phone, PhoneOff, Zap, Sparkles, Loader2 } from 'lucide-react';
+import { Phone, PhoneOff, Zap, Sparkles, Loader2, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function IncomingCallOverlay() {
@@ -17,7 +17,6 @@ export function IncomingCallOverlay() {
   const [activeCall, setActiveCall] = useState<VideoCallSession | null>(null);
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
-  // Monitor panggilan masuk secara real-time kawan
   const callsQuery = useMemo(() => (
     (firestore && currentUser)
       ? query(
@@ -38,7 +37,6 @@ export function IncomingCallOverlay() {
         const now = Date.now();
         const callTime = call.createdAt?.toMillis() || 0;
         
-        // Panggilan hanya valid jika kurang dari 60 detik kawan
         if (now - callTime < 60000) {
             setActiveCall(call);
         } else {
@@ -49,7 +47,6 @@ export function IncomingCallOverlay() {
     }
   }, [calls]);
 
-  // Pantau perubahan status panggilan aktif kawan
   useEffect(() => {
     if (!activeCall || !firestore) return;
     const unsubscribe = onSnapshot(doc(firestore, 'calls', activeCall.id), (sn) => {
@@ -65,7 +62,6 @@ export function IncomingCallOverlay() {
     return () => unsubscribe();
   }, [activeCall, firestore]);
 
-  // Logika Nada Dering Elitera kawan
   useEffect(() => {
     if (activeCall) {
       if (!ringtoneRef.current) {
@@ -86,15 +82,11 @@ export function IncomingCallOverlay() {
     if (!activeCall || !firestore || !currentUser) return;
     
     try {
-      // 1. Update status sesi di Firestore kawan
       await updateDoc(doc(firestore, 'calls', activeCall.id), { status: 'accepted' });
-      
-      // 2. Arahkan ke ruang obrolan dengan parameter callId kawan
-      router.push(`/messages?callId=${activeCall.id}`);
-      
+      router.push(`/messages?callId=${activeCall.id}&chatId=${activeCall.id}`); 
       setActiveCall(null);
     } catch (e) {
-      console.error("Gagal menjawab panggilan kawan:", e);
+      console.error("Gagal menjawab kawan:", e);
     }
   };
 
@@ -109,14 +101,14 @@ export function IncomingCallOverlay() {
     <AnimatePresence>
       {activeCall && (
         <motion.div 
-            initial={{ y: -120, opacity: 0, x: '-50%' }} 
+            initial={{ y: -150, opacity: 0, x: '-50%' }} 
             animate={{ y: 0, opacity: 1, x: '-50%' }} 
-            exit={{ y: -120, opacity: 0, x: '-50%' }} 
-            className="fixed top-6 left-1/2 z-[600] w-full max-w-[calc(100%-2.5rem)] md:max-w-md px-4 pointer-events-none"
+            exit={{ y: -150, opacity: 0, x: '-50%' }} 
+            className="fixed top-6 left-1/2 z-[600] w-full max-w-[calc(100%-2rem)] md:max-w-md px-4 pointer-events-none"
         >
-          <div className="bg-background/95 backdrop-blur-2xl border border-primary/20 shadow-[0_20px_60px_rgba(0,0,0,0.3)] rounded-[3rem] p-5 flex items-center justify-between gap-4 w-full ring-1 ring-white/10 pointer-events-auto overflow-hidden relative group">
+          <div className="bg-background/95 backdrop-blur-2xl border border-primary/20 shadow-[0_30px_100px_rgba(0,0,0,0.4)] rounded-[3rem] p-6 flex items-center justify-between gap-4 w-full ring-1 ring-white/10 pointer-events-auto overflow-hidden relative group">
             <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform">
-                <Zap className="h-20 w-20 text-primary" />
+                <Video className="h-24 w-24 text-primary" />
             </div>
             
             <div className="flex items-center gap-4 flex-1 min-w-0 relative z-10">
@@ -129,7 +121,7 @@ export function IncomingCallOverlay() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Panggilan Masuk</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Panggilan Video</p>
                     <Sparkles className="h-2.5 w-2.5 text-primary animate-bounce" />
                 </div>
                 <h4 className="font-black text-lg truncate tracking-tight">{activeCall.callerName}</h4>
@@ -140,14 +132,14 @@ export function IncomingCallOverlay() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-14 w-14 rounded-[1.5rem] text-rose-500 bg-rose-500/5 border border-rose-100/50 hover:bg-rose-500 hover:text-white transition-all active:scale-90" 
+                className="h-14 w-14 rounded-full text-rose-500 bg-rose-500/5 border border-rose-100 hover:bg-rose-500 hover:text-white transition-all active:scale-90" 
                 onClick={handleReject}
               >
                 <PhoneOff className="h-6 w-6" />
               </Button>
               <Button 
                 size="icon" 
-                className="h-14 w-14 rounded-[1.5rem] bg-primary animate-bounce shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all active:scale-90" 
+                className="h-14 w-14 rounded-full bg-primary animate-bounce shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all active:scale-90" 
                 onClick={handleAnswer}
               >
                 <Phone className="text-white h-6 w-6" />
