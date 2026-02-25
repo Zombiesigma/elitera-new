@@ -33,7 +33,6 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
   const [commentText, setCommentText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Jalur dasar untuk komentar tingkat atas
   const topLevelCommentsPath = `reels/${reelId}/comments`;
 
   useEffect(() => {
@@ -77,7 +76,6 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
 
       await batch.commit();
 
-      // Kirim Notifikasi ke Pemilik Reel
       if (currentUser.uid !== reelAuthorId) {
           const authorDoc = await getDoc(doc(firestore, 'users', reelAuthorId));
           if (authorDoc.exists()) {
@@ -129,7 +127,7 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
                     <SheetTitle className="text-2xl font-headline font-black tracking-tight">Diskusi Karya</SheetTitle>
                 </div>
                 <SheetDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">
-                    {isLoading ? 'Menghubungkan pikiran...' : `${comments?.length || 0} Ulasan Pujangga`}
+                    {isLoading ? 'Connecting minds...' : `${comments?.length || 0} Ulasan Pujangga`}
                 </SheetDescription>
             </div>
             <div className="bg-primary/5 p-3 rounded-2xl hidden sm:block">
@@ -140,7 +138,7 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
 
         <Separator className="opacity-50" />
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-muted/5 p-6 md:p-8">
+        <div className="flex-1 overflow-y-auto bg-muted/5 p-6 md:p-8">
           <AnimatePresence mode="wait">
             {isLoading ? (
                 <div className="flex flex-col items-center justify-center h-full gap-4 opacity-40">
@@ -175,7 +173,6 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
           </AnimatePresence>
         </div>
 
-        {/* Area Input Mengambang */}
         <div className="p-6 pb-10 border-t bg-background/95 backdrop-blur-xl relative z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
             <form onSubmit={handleSendComment} className="flex items-center gap-3 relative max-w-4xl mx-auto group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-accent/10 to-primary/20 rounded-[1.5rem] blur opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
@@ -197,21 +194,6 @@ export function ReelCommentsSheet({ reelId, reelAuthorId, isOpen, onOpenChange }
             </form>
         </div>
       </SheetContent>
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.05);
-          border-radius: 10px;
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.05);
-        }
-      `}</style>
     </Sheet>
   );
 }
