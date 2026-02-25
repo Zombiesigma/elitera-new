@@ -5,6 +5,7 @@ import { MobileNav } from '@/components/layout/MobileNav';
 import { ProtectedLayout } from '@/components/auth/ProtectedLayout';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { IncomingCallOverlay } from '@/components/layout/IncomingCallOverlay';
 
 export default function MainAppLayout({
   children,
@@ -13,7 +14,6 @@ export default function MainAppLayout({
 }) {
   const pathname = usePathname();
   
-  // Deteksi rute yang memerlukan tata letak layar penuh tanpa gulir utama (Messenger, AI, Reels, Reader, & Editor)
   const isImmersiveRoute = pathname?.startsWith('/messages') || 
                            pathname?.startsWith('/ai') || 
                            pathname?.startsWith('/reels') ||
@@ -23,10 +23,9 @@ export default function MainAppLayout({
   return (
     <ProtectedLayout>
       <div className={cn(
-        "relative flex flex-col bg-background w-full",
-        isImmersiveRoute ? "h-screen overflow-hidden" : "min-h-screen"
+        "relative flex flex-col bg-background w-full transition-all duration-500",
+        isImmersiveRoute ? "h-dvh overflow-hidden" : "min-h-screen"
       )}>
-        {/* Sembunyikan header utama di rute imersif (termasuk editor & pembaca) agar fokus maksimal */}
         {!isImmersiveRoute && <Header />}
         
         <main className={cn(
@@ -35,19 +34,20 @@ export default function MainAppLayout({
         )}>
           <div className={cn(
             "flex-1 relative mx-auto w-full",
-            isImmersiveRoute ? "container-none h-full" : "container px-4 py-6 md:px-6"
+            isImmersiveRoute ? "h-full" : "container px-4 py-6 md:px-6"
           )}>
             {children}
           </div>
         </main>
         
-        {/* Navigasi bawah disembunyikan di rute imersif termasuk halaman baca dan editor */}
         {!isImmersiveRoute && (
           <>
             <div className="h-12 md:hidden shrink-0" /> 
             <MobileNav />
           </>
         )}
+
+        <IncomingCallOverlay />
       </div>
     </ProtectedLayout>
   );
