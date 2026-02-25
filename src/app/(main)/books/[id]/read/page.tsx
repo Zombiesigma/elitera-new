@@ -57,14 +57,17 @@ export default function ReadPage() {
   const firestore = useFirestore();
   const [isMounted, setIsMounted] = useState(false);
   
+  // Reading Preferences - Paper is now DEFAULT
   const [fontSize, setFontSize] = useState(18);
   const [lineHeight, setLineHeight] = useState(1.8);
   const [fontFamily, setFontFamily] = useState<FontFamily>('font-serif');
   const [readingTheme, setReadingTheme] = useState<ReadingTheme>('paper');
   
+  // States
   const [readingProgress, setReadingProgress] = useState(0);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
 
+  // Audio System
   const [activeTrack, setActiveTrack] = useState<MusicTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.5);
@@ -443,6 +446,7 @@ export default function ReadPage() {
                                                     {blocks.map(block => {
                                                         let displayText = block.text;
                                                         
+                                                        // Accurate (CONT'D) logic for Reader
                                                         if (block.type === 'slugline') {
                                                             lastCharacterInScene = null;
                                                         } else if (block.type === 'character') {
@@ -549,6 +553,7 @@ export default function ReadPage() {
         .prose p { margin-bottom: 1.5em; text-indent: 1.5em; } 
         .prose p:first-of-type { text-indent: 0; }
         
+        /* Professional Screenplay Formatting */
         @media (min-width: 768px) {
             .font-mono article { padding-left: 0; padding-right: 0; }
         }
