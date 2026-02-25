@@ -87,6 +87,17 @@ export type Chapter = {
     createdAt: Timestamp;
 };
 
+export type CollaborationInvitation = {
+  id: string;
+  bookId: string;
+  bookTitle: string;
+  ownerId: string;
+  ownerName: string;
+  collaboratorId: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: Timestamp;
+};
+
 export type Music = {
   id: string;
   title: string;
