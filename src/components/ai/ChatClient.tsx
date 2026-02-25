@@ -28,10 +28,15 @@ export function ChatClient({ history }: { history: AiChatMessage[] }) {
   const firestore = useFirestore();
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // High-Precision Viewport Handling
+  const [viewportHeight, setViewportHeight] = useState('100%');
+  const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Memuat riwayat dari Firestore
   const aiMessagesQuery = useMemo(() => (
     (firestore && currentUser) 
       ? query(collection(firestore, `users/${currentUser.uid}/aiMessages`), orderBy('createdAt', 'asc'))
@@ -40,11 +45,10 @@ export function ChatClient({ history }: { history: AiChatMessage[] }) {
 
   const { data: dbMessages, isLoading: isHistoryLoading } = useCollection<AiChatMessage>(aiMessagesQuery);
 
-  // Gabungkan riwayat database dengan salam pembuka jika baru pertama kali
   const allMessages = useMemo(() => {
       if (!dbMessages && isHistoryLoading) return []; 
       if (dbMessages && dbMessages.length > 0) return dbMessages;
-      return history; // Salam pembuka default jika DB kosong
+      return history;
   }, [dbMessages, history, isHistoryLoading]);
 
   const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
@@ -59,7 +63,27 @@ export function ChatClient({ history }: { history: AiChatMessage[] }) {
     }
   };
 
-  // Scroll otomatis saat pesan baru masuk
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const vv = window.visualViewport;
+    const handleViewportChange = () => {
+      setViewportHeight(`${vv.height}px`);
+      setViewportOffsetTop(vv.offsetTop);
+      setIsKeyboardVisible(vv.height < window.innerHeight - 150);
+      scrollToBottom('auto');
+    };
+
+    vv.addEventListener('resize', handleViewportChange);
+    vv.addEventListener('scroll', handleViewportChange);
+    handleViewportChange();
+    
+    return () => {
+      vv.removeEventListener('resize', handleViewportChange);
+      vv.removeEventListener('scroll', handleViewportChange);
+    };
+  }, []);
+
   useEffect(() => {
     scrollToBottom(dbMessages?.length ? 'smooth' : 'auto');
   }, [allMessages, isProcessing, isHistoryLoading]);
@@ -72,7 +96,6 @@ export function ChatClient({ history }: { history: AiChatMessage[] }) {
     setIsProcessing(true);
 
     try {
-      // 1. Simpan pesan user ke Firestore
       const aiMessagesCol = collection(firestore, `users/${currentUser.uid}/aiMessages`);
       await addDoc(aiMessagesCol, {
         role: "user",
@@ -80,20 +103,17 @@ export function ChatClient({ history }: { history: AiChatMessage[] }) {
         createdAt: serverTimestamp(),
       });
 
-      // 2. Siapkan riwayat untuk dikirim ke AI (hanya content & role)
       const chatHistory = allMessages.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
 
-      // 3. Panggil Flow AI dengan riwayat lengkap
       const result = await chatWithEliteraAI({ 
         message: userMessageContent, 
         chatHistory,
         userName: currentUser?.displayName || 'Pujangga Elitera',
       });
       
-      // 4. Simpan respons AI ke Firestore
       await addDoc(aiMessagesCol, {
         role: "model",
         content: result.response,
@@ -102,7 +122,6 @@ export function ChatClient({ history }: { history: AiChatMessage[] }) {
 
     } catch (error) {
       console.error("Error with Elitera AI:", error);
-      // Feedback jika terjadi gangguan
       const aiMessagesCol = collection(firestore, `users/${currentUser.uid}/aiMessages`);
       await addDoc(aiMessagesCol, {
         role: "model",
@@ -127,7 +146,13 @@ export function ChatClient({ history }: { history: AiChatMessage[] }) {
   }, [input]);
 
   return (
-    <div className="flex flex-col h-full bg-background/50 overflow-hidden relative">
+    <div 
+      className="flex flex-col bg-background/50 overflow-hidden relative" 
+      style={{ 
+        height: viewportHeight,
+        transform: `translateY(${viewportOffsetTop}px)`
+      }}
+    >
       <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -262,7 +287,10 @@ export function ChatClient({ history }: { history: AiChatMessage[] }) {
         </div>
       </ScrollArea>
 
-      <div className="p-4 md:p-8 border-t border-border/40 bg-background/95 backdrop-blur-xl shrink-0 z-[60] relative pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[0_-15px_40px_-15px_rgba(0,0,0,0.1)]">
+      <div className={cn(
+        "p-4 md:p-8 border-t border-border/40 bg-background/95 backdrop-blur-xl shrink-0 z-[60] relative transition-all shadow-[0_-15px_40px_-15px_rgba(0,0,0,0.1)]",
+        isKeyboardVisible ? "pb-4" : "pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+      )}>
         <div className="max-w-3xl mx-auto relative">
             <form onSubmit={handleSubmit} className="relative flex items-end gap-4">
                 <div className="relative flex-1 group">
@@ -271,6 +299,7 @@ export function ChatClient({ history }: { history: AiChatMessage[] }) {
                         ref={textareaRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
+                        onFocus={() => setTimeout(() => scrollToBottom('smooth'), 300)}
                         placeholder="Lanjutkan narasimu..."
                         className="relative w-full resize-none rounded-[1.75rem] border-none bg-muted/40 px-6 py-4 pr-16 min-h-[60px] max-h-40 focus-visible:ring-primary/20 focus-visible:bg-background transition-all shadow-inner text-base font-medium leading-relaxed"
                         onKeyDown={(e) => {
