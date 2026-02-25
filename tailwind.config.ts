@@ -12,7 +12,7 @@ export default {
       fontFamily: {
         body: ['Inter', 'sans-serif'],
         headline: ['Playfair Display', 'serif'],
-        code: ['monospace'],
+        mono: ['Courier Prime', 'monospace'],
       },
       colors: {
         background: 'hsl(var(--background))',
