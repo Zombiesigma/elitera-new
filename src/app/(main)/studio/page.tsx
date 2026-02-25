@@ -26,7 +26,8 @@ import {
   Eye,
   Heart,
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  Briefcase
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -43,11 +44,17 @@ export default function StudioPage() {
     (firestore && currentUser) ? doc(firestore, 'users', currentUser.uid) : null
   );
 
-  // Queries - We removed orderBy to avoid the need for composite indexes
+  // Queries - My own books
   const booksQuery = useMemo(() => (
     (firestore && currentUser) ? query(collection(firestore, 'books'), where('authorId', '==', currentUser.uid)) : null
   ), [firestore, currentUser]);
   const { data: rawBooks, isLoading: isBooksLoading, error: booksError } = useCollection<Book>(booksQuery);
+
+  // Queries - Books where I am a collaborator
+  const collabBooksQuery = useMemo(() => (
+    (firestore && currentUser) ? query(collection(firestore, 'books'), where('collaboratorUids', 'array-contains', currentUser.uid)) : null
+  ), [firestore, currentUser]);
+  const { data: rawCollabBooks, isLoading: isCollabLoading } = useCollection<Book>(collabBooksQuery);
 
   const reelsQuery = useMemo(() => (
     (firestore && currentUser) ? query(collection(firestore, 'reels'), where('authorId', '==', currentUser.uid)) : null
@@ -64,6 +71,11 @@ export default function StudioPage() {
     if (!rawBooks) return [];
     return [...rawBooks].sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
   }, [rawBooks]);
+
+  const teamProjects = useMemo(() => {
+    if (!rawCollabBooks) return [];
+    return [...rawCollabBooks].sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+  }, [rawCollabBooks]);
 
   const myReels = useMemo(() => {
     if (!rawReels) return [];
@@ -181,6 +193,9 @@ export default function StudioPage() {
         <div className="flex items-center overflow-x-auto no-scrollbar pb-2 border-b border-border/40">
             <TabsList className="bg-muted/50 p-1 rounded-full h-auto flex-shrink-0">
                 <TabsTrigger value="books" className="rounded-full px-8 py-3 data-[state=active]:bg-primary data-[state=active]:text-white font-black uppercase text-[10px] tracking-widest transition-all">Karya Saya</TabsTrigger>
+                <TabsTrigger value="team-projects" className="rounded-full px-8 py-3 data-[state=active]:bg-primary data-[state=active]:text-white font-black uppercase text-[10px] tracking-widest transition-all gap-2">
+                    Proyek Tim {teamProjects.length > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-full text-[8px]">{teamProjects.length}</span>}
+                </TabsTrigger>
                 <TabsTrigger value="reels" className="rounded-full px-8 py-3 data-[state=active]:bg-primary data-[state=active]:text-white font-black uppercase text-[10px] tracking-widest transition-all">Reels</TabsTrigger>
                 <TabsTrigger value="collabs" className="rounded-full px-8 py-3 data-[state=active]:bg-primary data-[state=active]:text-white font-black uppercase text-[10px] tracking-widest transition-all gap-2">
                     Undangan {invitations && invitations.length > 0 && <span className="bg-rose-500 text-white px-2 py-0.5 rounded-full text-[8px]">{invitations.length}</span>}
@@ -235,6 +250,61 @@ export default function StudioPage() {
                                         <Button className="w-full rounded-2xl h-12 font-black uppercase text-[10px] tracking-[0.2em] shadow-lg shadow-primary/20 transition-all active:scale-95" asChild>
                                             <Link href={`/books/${book.id}/edit`}>
                                                 <Edit className="mr-2 h-3.5 w-3.5" /> Buka Editor
+                                            </Link>
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            </motion.div>
+                        ))}
+                    </div>
+                )}
+            </TabsContent>
+
+            <TabsContent value="team-projects" key="team-projects" className="mt-0">
+                {isCollabLoading ? (
+                    <div className="flex flex-col items-center py-20 gap-4 opacity-40">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                        <p className="font-black uppercase text-[10px] tracking-widest">Sinkronisasi Proyek Tim...</p>
+                    </div>
+                ) : teamProjects.length === 0 ? (
+                    <div className="py-24 text-center bg-muted/20 rounded-[3rem] border-2 border-dashed flex flex-col items-center gap-6">
+                        <div className="p-8 bg-background rounded-[2rem] shadow-sm"><Users className="h-12 w-12 text-muted-foreground/30" /></div>
+                        <div className="space-y-2">
+                            <h3 className="text-2xl font-headline font-black">Kolaborasi Aktif</h3>
+                            <p className="text-muted-foreground max-w-xs mx-auto">Anda belum memiliki proyek bersama penulis lain. Terima undangan kolaborasi untuk tampil di sini.</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {teamProjects.map((book, idx) => (
+                            <motion.div key={book.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}>
+                                <Card className="border-none shadow-xl rounded-[2.5rem] overflow-hidden group hover:-translate-y-1 transition-all duration-500 bg-card border border-primary/10">
+                                    <div className="aspect-[16/9] relative overflow-hidden">
+                                        <img src={book.coverUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                                        <div className="absolute top-4 left-4">
+                                            <Badge className="bg-indigo-600 text-white border-none rounded-full px-3 py-1 font-black text-[8px] uppercase tracking-widest">
+                                                <Briefcase className="h-2 w-2 mr-1.5" /> Kolaborator
+                                            </Badge>
+                                        </div>
+                                        <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                                            <Badge className={cn(
+                                                "rounded-full px-3 py-1 font-black text-[8px] uppercase tracking-widest",
+                                                book.status === 'published' ? "bg-emerald-500" : "bg-orange-500"
+                                            )}>
+                                                {book.status === 'published' ? 'Terbit' : 'Dalam Proses'}
+                                            </Badge>
+                                            <p className="text-[9px] font-black text-white/60">Arsitek: {book.authorName}</p>
+                                        </div>
+                                    </div>
+                                    <CardContent className="p-6 space-y-4">
+                                        <div>
+                                            <h3 className="font-headline text-lg font-black truncate italic">"{book.title}"</h3>
+                                            <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mt-1">Tim Kolaborasi • {book.type === 'screenplay' ? 'Naskah' : 'Buku'}</p>
+                                        </div>
+                                        <Button className="w-full rounded-2xl h-12 font-black uppercase text-[10px] tracking-[0.2em] shadow-lg shadow-indigo-500/20 bg-indigo-600 hover:bg-indigo-700 transition-all active:scale-95" asChild>
+                                            <Link href={`/books/${book.id}/edit`}>
+                                                <Edit className="mr-2 h-3.5 w-3.5" /> Bantu Menulis
                                             </Link>
                                         </Button>
                                     </CardContent>
