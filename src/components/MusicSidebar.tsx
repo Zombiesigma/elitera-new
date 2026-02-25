@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Music, Loader2, Disc, Headset, X, Play, Pause, ListMusic, Sparkles, Youtube, PlusCircle, Trash2, Cloud } from 'lucide-react';
+import { Search, Music, Loader2, Play, Pause, ListMusic, Sparkles, PlusCircle, Trash2, Disc, Volume2, CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { searchMusic, searchYouTube, syncTrackToCloud, type MusicTrack } from '@/app/actions/music';
+import { searchYouTube, getPreviewAudioUrl, type MusicTrack } from '@/app/actions/music';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useDoc } from '@/firebase';
@@ -21,13 +20,12 @@ interface MusicSidebarProps {
 export function MusicSidebar({ bookId }: MusicSidebarProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'library' | 'youtube' | 'lastfm' | 'playlist'>('library');
+  const [activeTab, setActiveTab] = useState<'search' | 'playlist' | 'library'>('search');
   
   const [searchQuery, setSearchQuery] = useState("");
-  const [lastfmResults, setLastfmResults] = useState<MusicTrack[]>([]);
-  const [youtubeResults, setYoutubeResults] = useState<MusicTrack[]>([]);
+  const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState<string | null>(null);
 
   const bookRef = useMemo(() => (firestore && bookId) ? doc(firestore, 'books', bookId) : null, [firestore, bookId]);
   const { data: book } = useDoc<Book>(bookRef);
@@ -37,78 +35,84 @@ export function MusicSidebar({ bookId }: MusicSidebarProps) {
   ), [firestore]);
   const { data: internalMusic, isLoading: isLibraryLoading } = useCollection<InternalMusic>(musicQuery);
 
-  const filteredLibrary = useMemo(() => {
-    if (!internalMusic) return [];
-    if (!searchQuery.trim()) return internalMusic;
-    return internalMusic.filter(m => 
-        m.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        m.artist.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [internalMusic, searchQuery]);
-
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Preview State
+  const [previewPlayingId, setPreviewPlayingId] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (!audioRef.current && typeof window !== 'undefined') {
-      audioRef.current = new Audio();
-      audioRef.current.onended = () => setPlayingId(null);
+    if (!previewAudioRef.current && typeof window !== 'undefined') {
+      previewAudioRef.current = new Audio();
+      previewAudioRef.current.onended = () => setPreviewPlayingId(null);
     }
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
       }
     };
   }, []);
 
-  const togglePlayInternal = (music: InternalMusic) => {
-    if (!audioRef.current) return;
-    if (playingId === music.id) {
-      audioRef.current.pause();
-      setPlayingId(null);
-    } else {
-      audioRef.current.src = music.url;
-      audioRef.current.play().catch(() => {});
-      setPlayingId(music.id);
+  const handleTogglePreview = async (track: MusicTrack) => {
+    if (!previewAudioRef.current || !track.id) return;
+    
+    if (previewPlayingId === track.id) {
+      previewAudioRef.current.pause();
+      setPreviewPlayingId(null);
+      return;
+    }
+
+    setIsPreviewLoading(track.id);
+    try {
+      const streamUrl = await getPreviewAudioUrl(track.id);
+      if (streamUrl) {
+        previewAudioRef.current.src = streamUrl;
+        await previewAudioRef.current.play();
+        setPreviewPlayingId(track.id);
+      } else {
+        toast({ variant: 'destructive', title: "Pratinjau Gagal", description: "Tidak dapat menjangkau server musik kawan." });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsPreviewLoading(null);
     }
   };
 
   const handleAddToPlaylist = async (track: MusicTrack) => {
     if (!bookRef || !book) return;
+    
     const trackId = track.id || track.name;
-    setIsSyncing(trackId);
+    setIsAdding(trackId);
 
     try {
-      let finalTrack = track;
-      if (track.source === 'youtube') {
-          toast({ title: "Sinkronisasi Cloud", description: "Menyiapkan jalur penyimpanan di /musik/playlist/..." });
-          finalTrack = await syncTrackToCloud(track, book.title);
-      }
-
+      // Simpan metadata lagu ke Firestore. URL akan dijemput on-demand saat diputar.
       await updateDoc(bookRef, {
-        playlist: arrayUnion(finalTrack)
+        playlist: arrayUnion({
+            ...track,
+            url: "", // Kita kosongkan karena akan di-generate real-time saat membaca
+        })
       });
       
       toast({ 
           variant: 'success',
-          title: "Berhasil Ditambahkan", 
-          description: track.source === 'youtube' ? `"${track.name}" telah diarsipkan ke proyek.` : `"${track.name}" masuk ke playlist.` 
+          title: "Lagu Ditambahkan", 
+          description: `"${track.name}" telah masuk ke playlist naskah kawan.` 
       });
-    } catch (e) {
+    } catch (e: any) {
       toast({ variant: 'destructive', title: "Gagal Menambahkan" });
     } finally {
-      setIsSyncing(null);
+      setIsAdding(null);
     }
   };
 
-  const handleRemoveFromPlaylist = async (track: MusicTrack) => {
+  const handleRemoveFromPlaylist = async (track: any) => {
     if (!bookRef) return;
     try {
       await updateDoc(bookRef, {
         playlist: arrayRemove(track)
       });
-      toast({ title: "Dihapus", description: `"${track.name}" keluar dari playlist.` });
+      toast({ title: "Dihapus dari Playlist" });
     } catch (e) {
       toast({ variant: 'destructive', title: "Gagal Menghapus" });
     }
@@ -117,20 +121,14 @@ export function MusicSidebar({ bookId }: MusicSidebarProps) {
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (searchQuery.trim().length < 2) {
-        setLastfmResults([]);
-        setYoutubeResults([]);
+        setSearchResults([]);
         return;
       }
 
       setIsSearching(true);
       try {
-        if (activeTab === 'lastfm') {
-          const results = await searchMusic(searchQuery);
-          setLastfmResults(results);
-        } else if (activeTab === 'youtube') {
-          const results = await searchYouTube(searchQuery);
-          setYoutubeResults(results);
-        }
+        const results = await searchYouTube(searchQuery);
+        setSearchResults(results);
       } catch (err) {
         console.error(err);
       } finally {
@@ -139,80 +137,139 @@ export function MusicSidebar({ bookId }: MusicSidebarProps) {
     }, 600);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, activeTab]);
+  }, [searchQuery]);
 
   return (
     <div className="flex flex-col h-full bg-card/30 backdrop-blur-sm overflow-hidden">
-      <Tabs defaultValue="library" className="flex flex-col h-full" value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+      <Tabs defaultValue="search" className="flex flex-col h-full" value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <div className="p-6 border-b border-border/40 shrink-0">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20">
-                <Headset className="h-5 w-5" />
+                <Disc className="h-5 w-5 animate-[spin_4s_linear_infinite]" />
               </div>
               <div>
-                <h3 className="font-headline text-lg font-black tracking-tight uppercase">Studio Audio</h3>
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Aransemen Suasana</p>
+                <h3 className="font-headline text-lg font-black tracking-tight uppercase">Harmoni Naskah</h3>
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Cari & Putar Soundtrack</p>
               </div>
             </div>
           </div>
 
-          <TabsList className={cn("w-full h-11 bg-muted/30 rounded-xl p-1 grid", bookId ? "grid-cols-4" : "grid-cols-3")}>
-            {bookId && (
-              <TabsTrigger value="playlist" className="rounded-lg text-[9px] font-black uppercase tracking-tighter gap-1">
-                <Sparkles className="h-3 w-3" /> Playlist
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="library" className="rounded-lg text-[9px] font-black uppercase tracking-tighter gap-1">
-              <ListMusic className="h-3 w-3" /> Library
-            </TabsTrigger>
-            <TabsTrigger value="youtube" className="rounded-lg text-[9px] font-black uppercase tracking-tighter gap-1">
-              <Youtube className="h-3 w-3" /> YouTube
-            </TabsTrigger>
-            <TabsTrigger value="lastfm" className="rounded-lg text-[9px] font-black uppercase tracking-tighter gap-1">
-              <Disc className="h-3 w-3" /> Last.fm
-            </TabsTrigger>
+          <TabsList className="w-full h-11 bg-muted/30 rounded-xl p-1 grid grid-cols-3">
+            <TabsTrigger value="search" className="rounded-lg text-[10px] font-black uppercase tracking-widest">Cari</TabsTrigger>
+            <TabsTrigger value="playlist" className="rounded-lg text-[10px] font-black uppercase tracking-widest">Playlist</TabsTrigger>
+            <TabsTrigger value="library" className="rounded-lg text-[10px] font-black uppercase tracking-widest">Koleksi</TabsTrigger>
           </TabsList>
 
-          <div className="relative group mt-6">
-            <Search className={cn(
-              "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-all duration-300",
-              isSearching ? "text-primary animate-pulse" : "text-muted-foreground group-focus-within:text-primary"
-            )} />
-            <Input
-              placeholder={activeTab === 'library' ? "Cari di koleksi..." : activeTab === 'youtube' ? "Cari di YouTube..." : "Cari di Last.fm..."}
-              className="pl-10 h-11 rounded-xl bg-muted/30 border-none focus-visible:ring-primary/20 transition-all font-medium text-sm shadow-inner"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+          {activeTab === 'search' && (
+            <div className="mt-6 relative group">
+                <Search className={cn(
+                    "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-all duration-300",
+                    isSearching ? "text-primary animate-pulse" : "text-muted-foreground group-focus-within:text-primary"
+                )} />
+                <Input
+                    placeholder="Judul lagu atau artis..."
+                    className="pl-10 h-11 rounded-xl bg-muted/30 border-none focus-visible:ring-primary/20 transition-all font-bold text-sm shadow-inner"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-hidden">
+          <TabsContent value="search" className="h-full m-0">
+            <div className="h-full overflow-y-auto no-scrollbar p-4 pb-20">
+              {isSearching ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-40">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-[9px] font-black uppercase tracking-widest">Menelusuri...</p>
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div className="space-y-3">
+                  {searchResults.map((track, i) => (
+                    <motion.div
+                      key={track.id || i}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="group flex items-center gap-4 p-3 rounded-2xl bg-card/50 border border-transparent hover:border-primary/20 transition-all shadow-sm"
+                    >
+                      <div className="relative h-12 w-12 rounded-xl overflow-hidden shrink-0 border border-white/10 shadow-md">
+                        <img src={track.image} className="h-full w-full object-cover" alt="" />
+                        <button 
+                            onClick={() => handleTogglePreview(track)}
+                            className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                            {isPreviewLoading === track.id ? (
+                                <Loader2 className="h-5 w-5 text-white animate-spin" />
+                            ) : previewPlayingId === track.id ? (
+                                <Pause className="h-5 w-5 text-white fill-current" />
+                            ) : (
+                                <Play className="h-5 w-5 text-white fill-current" />
+                            )}
+                        </button>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                            <p className="font-black text-xs truncate leading-tight italic">"{track.name}"</p>
+                            {previewPlayingId === track.id && (
+                                <span className="flex gap-0.5 items-end h-2 shrink-0">
+                                    <motion.div animate={{ height: [2, 8, 4] }} transition={{ repeat: Infinity, duration: 0.5 }} className="w-0.5 bg-primary rounded-full" />
+                                    <motion.div animate={{ height: [4, 2, 8] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-0.5 bg-primary rounded-full" />
+                                    <motion.div animate={{ height: [8, 4, 2] }} transition={{ repeat: Infinity, duration: 0.4 }} className="w-0.5 bg-primary rounded-full" />
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1 truncate">{track.artist}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button 
+                            className={cn(
+                                "h-10 w-10 flex items-center justify-center rounded-xl hover:bg-primary hover:text-white shrink-0 transition-colors",
+                                previewPlayingId === track.id && "text-primary bg-primary/10"
+                            )} 
+                            onClick={() => handleTogglePreview(track)}
+                        >
+                            {isPreviewLoading === track.id ? <Loader2 className="h-4 w-4 animate-spin" /> : previewPlayingId === track.id ? <Pause className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                        </button>
+                        <button 
+                            className="h-10 w-10 flex items-center justify-center rounded-xl hover:bg-primary hover:text-white shrink-0 transition-colors" 
+                            disabled={isAdding === track.id}
+                            onClick={() => handleAddToPlaylist(track)}
+                        >
+                            {isAdding === track.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-5 w-5" />}
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-20 text-center space-y-4 opacity-30">
+                    <div className="p-6 bg-muted rounded-full w-fit mx-auto"><Music className="h-10 w-10" /></div>
+                    <p className="text-[10px] font-black uppercase tracking-widest px-10">Ketik judul untuk mencari lagu puitis kawan.</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
           <TabsContent value="playlist" className="h-full m-0">
             <div className="h-full overflow-y-auto no-scrollbar p-4 pb-20">
               {book?.playlist && book.playlist.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between px-2 py-2">
-                    <p className="text-[8px] font-black uppercase tracking-[0.25em] text-primary/60">Soundtrack Resmi</p>
-                    <div className="flex items-center gap-1 opacity-40">
-                        <Cloud className="h-2.5 w-2.5" />
-                        <span className="text-[7px] font-black uppercase tracking-widest">GitHub Sync Active</span>
-                    </div>
-                  </div>
+                <div className="space-y-3">
                   {book.playlist.map((track, i) => (
-                    <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-4 p-3 rounded-2xl bg-primary/5 border border-primary/10 group">
-                      <div className="relative">
-                        <img src={track.image} className="h-10 w-10 rounded-xl object-cover" alt="" />
-                        {track.source === 'youtube' && (
-                            <div className="absolute -top-1 -right-1 bg-zinc-900 rounded-full p-0.5 border border-white/10">
-                                <Youtube className="h-2 w-2 text-rose-500" />
-                            </div>
-                        )}
+                    <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-4 p-3 rounded-2xl bg-primary/5 border border-primary/10 group relative">
+                      <div className="relative shrink-0">
+                        <img src={track.image} className="h-10 w-10 rounded-xl object-cover shadow-sm" alt="" />
+                        <div className="absolute -top-1 -right-1 bg-primary rounded-full p-0.5 border border-white/10 shadow-lg">
+                            <CheckCircle2 className="h-2.5 w-2.5 text-white" />
+                        </div>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-black text-xs truncate">"{track.name}"</p>
-                        <p className="text-[9px] font-bold text-muted-foreground uppercase">{track.artist}</p>
+                        <div className="flex items-center gap-1.5">
+                            <p className="font-black text-xs truncate italic">"{track.name}"</p>
+                        </div>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase mt-0.5">{track.artist}</p>
                       </div>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleRemoveFromPlaylist(track)}>
                         <Trash2 className="h-4 w-4" />
@@ -223,7 +280,7 @@ export function MusicSidebar({ bookId }: MusicSidebarProps) {
               ) : (
                 <div className="text-center py-20 opacity-30">
                   <Sparkles className="h-10 w-10 mx-auto mb-2" />
-                  <p className="text-xs font-bold uppercase tracking-widest">Playlist Masih Kosong</p>
+                  <p className="text-xs font-bold uppercase tracking-widest">Playlist Belum Ada</p>
                 </div>
               )}
             </div>
@@ -234,138 +291,39 @@ export function MusicSidebar({ bookId }: MusicSidebarProps) {
               {isLibraryLoading ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-40">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-[9px] font-black uppercase tracking-widest">Sinkronisasi...</p>
                 </div>
-              ) : filteredLibrary.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-[8px] font-black uppercase tracking-[0.25em] text-muted-foreground/40 px-2 py-2">Koleksi Elitera</p>
-                  {filteredLibrary.map((music, i) => (
-                    <motion.div
-                      key={music.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className={cn(
-                        "group flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden",
-                        playingId === music.id ? "bg-primary/10 border-primary/20 shadow-md" : "bg-card/50 border-transparent hover:bg-primary/5"
-                      )}
-                    >
-                      <div className="relative shrink-0" onClick={() => togglePlayInternal(music)}>
-                        <div className={cn("h-12 w-12 rounded-xl bg-zinc-900 flex items-center justify-center border border-white/10 shadow-lg")}>
-                          {playingId === music.id ? <Pause className="h-5 w-5 text-primary fill-current" /> : <Play className="h-5 w-5 text-white fill-current opacity-40 group-hover:opacity-100" />}
-                        </div>
+              ) : internalMusic && internalMusic.length > 0 ? (
+                <div className="space-y-3">
+                  {internalMusic.map((music) => (
+                    <div key={music.id} className="group flex items-center gap-4 p-3 rounded-2xl bg-card/50 border border-transparent hover:border-primary/20 transition-all shadow-sm">
+                      <div className="h-10 w-10 rounded-xl bg-zinc-900 flex items-center justify-center border border-white/5 shadow-inner">
+                        <Play className="h-4 w-4 text-white/40" />
                       </div>
-                      <div className="min-w-0 flex-1" onClick={() => togglePlayInternal(music)}>
-                        <p className={cn("font-black text-sm truncate leading-tight transition-colors italic", playingId === music.id ? "text-primary" : "")}>"{music.title}"</p>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1 truncate">{music.artist}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-xs truncate italic">"{music.title}"</p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase truncate mt-0.5">{music.artist}</p>
                       </div>
-                      {bookId && (
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-10 w-10 rounded-xl hover:bg-primary hover:text-white" 
-                            disabled={isSyncing === music.id}
-                            onClick={() => handleAddToPlaylist({
-                                name: music.title,
-                                artist: music.artist,
-                                image: 'https://placehold.co/64x64?text=Music',
-                                url: music.url,
-                                source: 'internal'
-                            })}
-                        >
-                          {isSyncing === music.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-5 w-5" />}
-                        </Button>
-                      )}
-                    </motion.div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-9 w-9 rounded-xl hover:bg-primary hover:text-white" 
+                        onClick={() => handleAddToPlaylist({
+                            name: music.title,
+                            artist: music.artist,
+                            image: 'https://placehold.co/64x64?text=Music',
+                            id: music.id,
+                            source: 'youtube'
+                        })}
+                      >
+                        <PlusCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-20 opacity-30">
-                  <Music className="h-10 w-10 mx-auto mb-2" />
-                  <p className="text-xs font-bold uppercase tracking-widest">Tidak ada musik</p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="youtube" className="h-full m-0">
-            <div className="h-full overflow-y-auto no-scrollbar p-4 pb-20">
-              {isSearching ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-40">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-[9px] font-black uppercase tracking-widest">Menelusuri...</p>
-                </div>
-              ) : youtubeResults.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-[8px] font-black uppercase tracking-[0.25em] text-muted-foreground/40 px-2 py-2">Konten YouTube</p>
-                  {youtubeResults.map((track, i) => (
-                    <motion.div key={i} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="group flex items-center gap-4 p-3 rounded-2xl bg-card/50 border border-transparent hover:border-primary/20 transition-all cursor-default shadow-sm">
-                      <div className="relative h-12 w-12 rounded-xl overflow-hidden shrink-0 border border-white/10 shadow-md">
-                        <img src={track.image} className="h-full w-full object-cover opacity-80" alt="" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20"><Play className="h-3 w-3 text-white fill-current" /></div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-black text-xs truncate leading-tight italic">"{track.name}"</p>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1 truncate">{track.artist}</p>
-                      </div>
-                      {bookId && (
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-10 w-10 rounded-xl hover:bg-primary hover:text-white" 
-                            disabled={isSyncing === track.id}
-                            onClick={() => handleAddToPlaylist(track)}
-                        >
-                          {isSyncing === track.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-5 w-5" />}
-                        </Button>
-                      )}
-                    </motion.div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-10 text-center opacity-30">
-                  <Youtube className="h-10 w-10 mx-auto mb-2" />
-                  <p className="text-xs font-bold uppercase tracking-widest">Cari di YouTube</p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="lastfm" className="h-full m-0">
-            <div className="h-full overflow-y-auto no-scrollbar p-4 pb-20">
-              {isSearching ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-40">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-[9px] font-black uppercase tracking-widest">Menelusuri...</p>
-                </div>
-              ) : lastfmResults.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-[8px] font-black uppercase tracking-[0.25em] text-muted-foreground/40 px-2 py-2">Referensi (Last.fm)</p>
-                  {lastfmResults.map((track, i) => (
-                    <motion.div key={i} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4 p-3 rounded-2xl transition-all cursor-default group">
-                      <img src={track.image} className="h-12 w-12 rounded-xl object-cover shadow-sm border border-white/10" alt="" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-black text-xs truncate italic">"{track.name}"</p>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter truncate">{track.artist}</p>
-                      </div>
-                      {bookId && (
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-10 w-10 rounded-xl hover:bg-primary hover:text-white" 
-                            disabled={isSyncing === track.name}
-                            onClick={() => handleAddToPlaylist(track)}
-                        >
-                          {isSyncing === track.name ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-5 w-5" />}
-                        </Button>
-                      )}
-                    </motion.div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-10 text-center opacity-30">
-                  <Disc className="h-10 w-10 mx-auto mb-2" />
-                  <p className="text-xs font-bold uppercase tracking-widest">Cari di Last.fm</p>
+                  <ListMusic className="h-10 w-10 mx-auto mb-2" />
+                  <p className="text-xs font-bold uppercase tracking-widest">Perpustakaan Kosong</p>
                 </div>
               )}
             </div>
