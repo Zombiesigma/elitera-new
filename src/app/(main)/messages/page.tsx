@@ -163,7 +163,11 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // High-Precision Viewport Handling kawan
   const [viewportHeight, setViewportHeight] = useState('100dvh');
+  const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -173,7 +177,7 @@ export default function MessagesPage() {
   const [fullPreviewUrl, setFullPreviewUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   
-  // Video Call States
+  // Video Call States kawan
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
   const [isCaller, setIsCaller] = useState(false);
   
@@ -190,6 +194,9 @@ export default function MessagesPage() {
     const vv = window.visualViewport;
     const updateViewport = () => {
       setViewportHeight(`${vv.height}px`);
+      setViewportOffsetTop(vv.offsetTop);
+      setIsKeyboardVisible(vv.height < window.innerHeight - 150);
+
       if (selectedChatId) {
           setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -324,6 +331,7 @@ export default function MessagesPage() {
         const callsCol = collection(firestore, 'calls');
         const callDoc = doc(callsCol);
         
+        // Buat sesi panggilan di Firestore kawan
         await setDoc(callDoc, {
             callerId: currentUser.uid,
             receiverId: otherParticipant.uid,
@@ -333,7 +341,7 @@ export default function MessagesPage() {
             createdAt: serverTimestamp()
         });
 
-        // Add Call Log Message to Chat History
+        // Log panggilan di riwayat obrolan kawan
         const batch = writeBatch(firestore);
         const msgRef = doc(collection(firestore, 'chats', selectedChatId, 'messages'));
         
@@ -412,24 +420,6 @@ export default function MessagesPage() {
     }
   };
 
-  const downloadImage = async (url: string) => {
-    try {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = `elitera-media-${Date.now()}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-        toast({ variant: 'success', title: "Gambar Disimpan" });
-    } catch (e) {
-        toast({ variant: 'destructive', title: "Gagal Mengunduh" });
-    }
-  };
-
   const filteredThreads = useMemo(() => {
     if (!chatThreads) return [];
     if (!searchTerm.trim()) return [...chatThreads].sort((a, b) => (b.lastMessage?.timestamp?.toMillis() || 0) - (a.lastMessage?.timestamp?.toMillis() || 0));
@@ -464,7 +454,13 @@ export default function MessagesPage() {
   if (!currentUser) return null;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-background transition-all duration-300 overflow-hidden" style={{ height: viewportHeight }}>
+    <div 
+      className="fixed top-0 left-0 right-0 flex flex-col bg-background overflow-hidden z-[50]" 
+      style={{ 
+        height: viewportHeight,
+        transform: `translateY(${viewportOffsetTop}px)`
+      }}
+    >
       <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
 
@@ -472,7 +468,13 @@ export default function MessagesPage() {
         <VideoCall 
             callId={activeCallId} 
             isCaller={isCaller} 
-            onClose={() => setActiveCallId(null)} 
+            onClose={() => {
+                setActiveCallId(null);
+                // Reset URL kawan agar tidak memicu pemanggilan ulang saat mount
+                const newParams = new URLSearchParams(searchParams);
+                newParams.delete('callId');
+                router.replace(`/messages?${newParams.toString()}`);
+            }} 
         />
       )}
 
@@ -592,7 +594,7 @@ export default function MessagesPage() {
             exit={{ opacity: 0, x: 20 }}
             className="flex flex-col h-full w-full max-w-3xl mx-auto bg-background md:border-x shadow-2xl relative z-20"
           >
-            <header className="flex items-center h-24 md:h-28 px-4 md:px-10 border-b bg-background/80 backdrop-blur-2xl z-30 shrink-0 shadow-sm pt-[max(1.5rem,env(safe-area-inset-top))]">
+            <header className="flex items-center h-20 md:h-24 px-4 md:px-10 border-b bg-background/80 backdrop-blur-2xl z-30 shrink-0 shadow-sm pt-[max(0.5rem,env(safe-area-inset-top))]">
                 <Button variant="ghost" size="icon" onClick={handleGoBack} className="rounded-full mr-2 md:mr-6 hover:bg-primary/5 hover:text-primary transition-all active:scale-90 h-11 w-11">
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
@@ -600,29 +602,29 @@ export default function MessagesPage() {
                 {otherParticipant ? (
                     <Link href={`/profile/${otherParticipant.username}`} className="flex items-center gap-4 flex-1 min-w-0 group">
                         <div className="relative">
-                            <Avatar className="h-11 w-11 md:h-14 md:w-14 border-2 border-background shadow-2xl transition-transform group-hover:scale-110 ring-1 ring-primary/10">
+                            <Avatar className="h-10 w-10 md:h-12 md:w-12 border-2 border-background shadow-2xl transition-transform group-hover:scale-110 ring-1 ring-primary/10">
                                 <AvatarImage src={otherParticipant.photoURL} className="object-cover" />
                                 <AvatarFallback className="bg-primary/10 text-primary font-black">{otherParticipant.displayName[0]}</AvatarFallback>
                             </Avatar>
-                            <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-green-500 border-2 border-background rounded-full shadow-lg animate-pulse" />
+                            <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-background rounded-full shadow-lg animate-pulse" />
                         </div>
                         <div className="min-w-0">
-                            <h4 className="font-black text-sm md:text-lg truncate group-hover:text-primary transition-colors tracking-tight">{otherParticipant.displayName}</h4>
+                            <h4 className="font-black text-sm md:text-base truncate group-hover:text-primary transition-colors tracking-tight">{otherParticipant.displayName}</h4>
                             <div className="flex items-center gap-2">
                                 <div className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Pujangga Terhubung</p>
+                                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Pujangga Terhubung</p>
                             </div>
                         </div>
                     </Link>
                 ) : (
-                    <div className="flex-1 h-12 bg-muted animate-pulse rounded-full" />
+                    <div className="flex-1 h-10 bg-muted animate-pulse rounded-full" />
                 )}
 
                 <div className="flex items-center gap-1.5 md:gap-3">
                     <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5"
+                        className="rounded-2xl h-10 w-10 text-muted-foreground hover:text-primary hover:bg-primary/5"
                         onClick={handleInitiateCall}
                         disabled={isSending}
                     >
@@ -631,7 +633,7 @@ export default function MessagesPage() {
                     
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5">
+                            <Button variant="ghost" size="icon" className="rounded-2xl h-10 w-10 text-muted-foreground hover:text-primary hover:bg-primary/5">
                                 <MoreVertical className="h-4.5 w-4.5"/>
                             </Button>
                         </DropdownMenuTrigger>
@@ -773,7 +775,10 @@ export default function MessagesPage() {
                 </div>
             </ScrollArea>
 
-            <div className="p-3 md:p-10 border-t bg-background/95 backdrop-blur-2xl shrink-0 z-30 relative pb-[max(0.2rem,env(safe-area-inset-bottom))] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.15)]">
+            <div className={cn(
+                "p-3 md:p-10 border-t bg-background/95 backdrop-blur-2xl shrink-0 z-30 relative shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.15)] transition-all",
+                isKeyboardVisible ? "pb-3" : "pb-[max(1rem,env(safe-area-inset-bottom))]"
+            )}>
                 <div className="max-w-4xl mx-auto relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/20 to-primary/30 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
                     
@@ -916,7 +921,7 @@ export default function MessagesPage() {
                     <div className="flex items-center gap-3">
                         <Zap className="h-3 w-3 text-primary animate-pulse" />
                         <p className="text-[9px] font-black uppercase tracking-[0.5em] text-muted-foreground whitespace-nowrap">
-                            Enkripsi Sastra Aktif • Elitera System v7.7
+                            Enkripsi Sastra Aktif • Elitera System v7.8
                         </p>
                     </div>
                 </div>
@@ -949,9 +954,25 @@ export default function MessagesPage() {
                     <Button 
                         variant="ghost" 
                         className="text-white hover:bg-white/10 rounded-2xl h-12 px-6 font-black uppercase text-[10px] tracking-widest gap-2 bg-black/20 backdrop-blur-md border border-white/10"
-                        onClick={() => fullPreviewUrl && downloadImage(fullPreviewUrl)}
+                        onClick={() => fullPreviewUrl && (async () => {
+                            try {
+                                const response = await fetch(fullPreviewUrl);
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `elitera-media-${Date.now()}.jpg`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(url);
+                                toast({ variant: 'success', title: "Gambar Disimpan" });
+                            } catch (e) {
+                                toast({ variant: 'destructive', title: "Gagal Mengunduh" });
+                            }
+                        })()}
                     >
-                        <X className="h-4 w-4" /> Simpan Gambar
+                        <ImageIcon className="h-4 w-4" /> Simpan Gambar
                     </Button>
                 </div>
             </div>
@@ -962,7 +983,7 @@ export default function MessagesPage() {
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         src={fullPreviewUrl} 
-                        className="max-w-full max-h-full object-contain shadow-2xl rounded-xl ring-1 ring-white/10" 
+                        className="max-w-full h-auto max-h-full object-contain shadow-2xl rounded-xl ring-1 ring-white/10" 
                         alt="Full preview" 
                     />
                 )}
