@@ -6,7 +6,7 @@ import { doc, collection, serverTimestamp, query, orderBy, increment, writeBatch
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Heart, MessageSquare, Send, Loader2, CornerDownRight } from 'lucide-react';
+import { Heart, MessageSquare, Send, Loader2, CornerDownRight, Reply } from 'lucide-react';
 import type { ReelComment, ReelCommentLike } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -19,8 +19,8 @@ import remarkGfm from 'remark-gfm';
 interface ReelCommentItemProps {
     reelId: string;
     comment: ReelComment;
-    parentPath: string; // Jalur koleksi tempat komentar ini berada
-    depth?: number;     // Tingkat kedalaman untuk indentasi UI
+    parentPath: string; 
+    depth?: number;     
 }
 
 export function ReelCommentItem({ reelId, comment, parentPath, depth = 0 }: ReelCommentItemProps) {
@@ -33,11 +33,9 @@ export function ReelCommentItem({ reelId, comment, parentPath, depth = 0 }: Reel
     const [isSubmittingReply, setIsSubmittingReply] = useState(false);
     const [isLiking, setIsLiking] = useState(false);
 
-    // Jalur untuk balasan dari komentar ini
     const currentCommentRefPath = `${parentPath}/${comment.id}`;
     const repliesPath = `${currentCommentRefPath}/replies`;
 
-    // Logika Like
     const likeRef = useMemo(() => (
         (firestore && currentUser) ? doc(firestore, `${currentCommentRefPath}/likes`, currentUser.uid) : null
     ), [firestore, currentUser, currentCommentRefPath]);
@@ -70,12 +68,11 @@ export function ReelCommentItem({ reelId, comment, parentPath, depth = 0 }: Reel
         }
     };
 
-    // Ambil Balasan (Rekursif)
     const repliesQuery = useMemo(() => (
         firestore ? query(collection(firestore, repliesPath), orderBy('createdAt', 'asc')) : null
     ), [firestore, repliesPath]);
     
-    const { data: replies, isLoading: areRepliesLoading } = useCollection<ReelComment>(repliesQuery);
+    const { data: replies } = useCollection<ReelComment>(repliesQuery);
 
     const handleReplySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -112,7 +109,6 @@ export function ReelCommentItem({ reelId, comment, parentPath, depth = 0 }: Reel
         }
     };
 
-    // Batasi indentasi agar tidak terlalu menjorok di layar kecil
     const maxDepth = 3;
     const currentDepth = depth > maxDepth ? maxDepth : depth;
 
@@ -162,14 +158,13 @@ export function ReelCommentItem({ reelId, comment, parentPath, depth = 0 }: Reel
                             onClick={() => setShowReplyInput(!showReplyInput)}
                             className="flex items-center gap-1 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all"
                         >
-                            <MessageSquare className="h-3 w-3 md:h-3.5 md:w-3.5" />
-                            <span>{comment.replyCount || 0} Balas</span>
+                            <Reply className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                            <span>{comment.replyCount || 0}</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Input Balasan */}
             <AnimatePresence>
                 {showReplyInput && currentUser && (
                     <motion.div 
@@ -203,7 +198,6 @@ export function ReelCommentItem({ reelId, comment, parentPath, depth = 0 }: Reel
                 )}
             </AnimatePresence>
             
-            {/* Daftar Balasan Rekursif */}
             {replies && replies.length > 0 && (
                 <div className={cn(
                     "pl-6 md:pl-10 mt-2 relative",
