@@ -1,20 +1,25 @@
 import { getBookById } from '@/firebase/server-service';
 import type { Metadata, ResolvingMetadata } from 'next';
 import BookDetailsClient from './BookDetailsClient';
+import { notFound } from 'next/navigation';
 
 type Props = {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
+/**
+ * Generate SEO Metadata for social sharing (OpenGraph/Twitter).
+ */
 export async function generateMetadata(
   { params }: Props,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const book = await getBookById(params.id);
+  const { id } = await params;
+  const book = await getBookById(id);
 
   if (!book) {
     return {
-      title: 'Buku Tidak Ditemukan',
+      title: 'Karya Tidak Ditemukan',
     }
   }
 
@@ -24,18 +29,18 @@ export async function generateMetadata(
     title: book.title,
     description: book.synopsis,
     openGraph: {
-      title: book.title,
+      title: `${book.title} oleh ${book.authorName}`,
       description: book.synopsis,
       images: [
         {
           url: book.coverUrl,
-          width: 400,
-          height: 600,
-          alt: `Sampul buku ${book.title}`,
+          width: 800,
+          height: 1200,
+          alt: `Sampul Mahakarya: ${book.title}`,
         },
         ...previousImages,
       ],
-      type: 'book' as any,
+      type: 'book',
       authors: [book.authorName],
     },
     twitter: {
@@ -47,10 +52,16 @@ export async function generateMetadata(
   }
 }
 
-// This is the page component that will be rendered.
-// It renders the Client Component that contains all the interactive logic.
-export default function BookDetailsPage({ params }: Props) {
+/**
+ * Main Book Details Page.
+ * Server component that delegates interactivity to BookDetailsClient.
+ */
+export default async function BookDetailsPage({ params }: Props) {
+  const { id } = await params;
+  
+  // Preliminary server-side check
+  const book = await getBookById(id);
+  if (!book) notFound();
+
   return <BookDetailsClient />;
 }
-
-    
