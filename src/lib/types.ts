@@ -177,9 +177,8 @@ export type VoiceNoteMessage = {
 export type VideoCallMessage = {
     id: string;
     type: 'video_call';
-    roomUrl: string;
-    callerName: string;
-    status: 'active' | 'ended';
+    callId: string;
+    status: 'calling' | 'missed' | 'ended';
 };
 
 export type BookShareMessage = {
@@ -335,13 +334,14 @@ export type ReelCommentLike = {
   likedAt: Timestamp;
 }
 
-export type VideoCallSession = {
+export interface VideoCallSession {
   id: string;
   callerId: string;
+  receiverId: string;
   callerName: string;
   callerPhotoURL: string;
-  receiverId: string;
-  roomUrl: string;
   status: 'calling' | 'accepted' | 'rejected' | 'ended';
+  offer?: RTCSessionDescriptionInit;
+  answer?: RTCSessionDescriptionInit;
   createdAt: Timestamp;
-};
+}
