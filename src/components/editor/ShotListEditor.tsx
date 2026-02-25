@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, doc, writeBatch, serverTimestamp, query, orderBy, deleteDoc, addDoc } from 'firebase/firestore';
 import type { Shot } from '@/lib/types';
@@ -8,10 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Plus, Trash2, Camera, Info, Save, Loader2, ListChecks } from 'lucide-react';
+import { Plus, Trash2, Loader2, ListChecks } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
 
 interface ShotListEditorProps {
   bookId: string;
@@ -27,7 +25,6 @@ const shotTypes = [
 export function ShotListEditor({ bookId }: ShotListEditorProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
 
   const shotsQuery = firestore ? query(collection(firestore, 'books', bookId, 'shotList'), orderBy('number', 'asc')) : null;
   const { data: shots, isLoading } = useCollection<Shot>(shotsQuery);
