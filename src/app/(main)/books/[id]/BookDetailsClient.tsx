@@ -268,7 +268,7 @@ export default function BookDetailsClient() {
                     "w-full h-14 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all duration-500",
                     isFavorite ? "text-rose-500 bg-rose-500/5 hover:bg-rose-500/10" : "bg-muted/50 hover:bg-muted/80 text-muted-foreground"
                 )}
-                onClick={handleToggleToggleFavorite}
+                onClick={handleToggleFavorite}
                 disabled={isTogglingFavorite}
             >
                 <Heart className={cn("mr-2.5 h-4 w-4 transition-transform duration-500", isFavorite && "fill-current scale-110")} />
