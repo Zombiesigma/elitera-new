@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useFirestore, useUser, useCollection } from '@/firebase';
-import { collection, query, where, orderBy, doc, updateDoc, increment, writeBatch, serverTimestamp, onSnapshot, addDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, updateDoc, increment, writeBatch, serverTimestamp, onSnapshot, addDoc, setDoc } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,25 +18,23 @@ import {
   Sparkles, 
   Zap, 
   MoreVertical,
-  Phone,
-  Video,
   ChevronRight,
-  Clock,
   CheckCheck,
-  Check,
-  Paperclip,
-  Smile,
-  Mic,
   Image as ImageIcon,
   X,
   Trash2,
   Play,
   Pause,
-  Volume2,
-  Download
+  Reply,
+  User as UserIcon,
+  Video,
+  Mic,
+  VideoOff,
+  PhoneCall,
+  VideoIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Chat, ChatMessage, User as AppUser } from '@/lib/types';
+import type { Chat, ChatMessage, User as AppUser, VideoCallSession } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -49,10 +47,15 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import { VideoCall } from '@/components/chat/VideoCall';
 
-/**
- * Component khusus untuk memutar Voice Note dengan visualisasi progres fungsional.
- */
 function VoiceNotePlayer({ audioUrl, isMe }: { audioUrl: string; isMe: boolean }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -130,7 +133,7 @@ function VoiceNotePlayer({ audioUrl, isMe }: { audioUrl: string; isMe: boolean }
         </div>
         <div className="flex justify-between items-center px-0.5">
             <p className={cn("text-[8px] font-black uppercase tracking-[0.2em]", isMe ? "text-white/50" : "text-muted-foreground/50")}>
-                {isPlaying ? 'Sedang Diputar' : 'Pesan Suara'}
+                Pesan Suara
             </p>
             <p className={cn("text-[9px] font-mono font-bold", isMe ? "text-white/70" : "text-primary")}>
                 {formatTime(currentTime)} / {formatTime(duration)}
@@ -162,46 +165,55 @@ export default function MessagesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewportHeight, setViewportHeight] = useState('100dvh');
   
-  // Media States
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [fullPreviewUrl, setFullPreviewUrl] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  
+  // Video Call States
+  const [activeCallId, setActiveCallId] = useState<string | null>(null);
+  const [isCaller, setIsCaller] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatIdFromUrl = searchParams.get('chatId');
+  const callIdFromUrl = searchParams.get('callId');
 
-  // Keyboard Awareness Logic: Menjamin area input menempel di atas keyboard HP
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
 
-    const handleResize = () => {
-      if (window.visualViewport) {
-        setViewportHeight(`${window.visualViewport.height}px`);
-        // Smooth scroll ke bawah saat keyboard naik
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 150);
+    const vv = window.visualViewport;
+    const updateViewport = () => {
+      setViewportHeight(`${vv.height}px`);
+      if (selectedChatId) {
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }, 100);
       }
     };
 
-    window.visualViewport.addEventListener('resize', handleResize);
-    window.visualViewport.addEventListener('scroll', handleResize);
+    vv.addEventListener('resize', updateViewport);
+    vv.addEventListener('scroll', updateViewport);
+    updateViewport();
     
     return () => {
-      window.visualViewport?.removeEventListener('resize', handleResize);
-      window.visualViewport?.removeEventListener('scroll', handleResize);
+      vv.removeEventListener('resize', updateViewport);
+      vv.removeEventListener('scroll', updateViewport);
     };
-  }, []);
+  }, [selectedChatId]);
 
   useEffect(() => {
-    setSelectedChatId(chatIdFromUrl || null);
-  }, [chatIdFromUrl]);
+    if (chatIdFromUrl) setSelectedChatId(chatIdFromUrl);
+    if (callIdFromUrl) {
+        setActiveCallId(callIdFromUrl);
+        setIsCaller(false);
+    }
+  }, [chatIdFromUrl, callIdFromUrl]);
 
   const chatThreadsQuery = useMemo(() => (
     (firestore && currentUser)
@@ -211,10 +223,10 @@ export default function MessagesPage() {
   const { data: chatThreads, isLoading: isLoadingThreads } = useCollection<Chat>(chatThreadsQuery);
 
   const messagesQuery = useMemo(() => (
-    (firestore && selectedChatId)
+    (firestore && currentUser && selectedChatId)
       ? query(collection(firestore, 'chats', selectedChatId, 'messages'), orderBy('createdAt', 'asc'))
       : null
-  ), [firestore, selectedChatId]);
+  ), [firestore, currentUser, selectedChatId]);
   const { data: messages, isLoading: isLoadingMessages } = useCollection<ChatMessage>(messagesQuery);
   
   const selectedChat = useMemo(() => chatThreads?.find(c => c.id === selectedChatId), [chatThreads, selectedChatId]);
@@ -253,6 +265,17 @@ export default function MessagesPage() {
         createdAt: serverTimestamp(),
       };
 
+      if (replyingTo) {
+        const replySender = selectedChat?.participants.find(p => p.uid === replyingTo.senderId);
+        messageData.replyTo = {
+          text: replyingTo.type === 'text' ? replyingTo.text : 
+                replyingTo.type === 'image' ? '📷 Foto' : 
+                replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : 'Karya',
+          senderName: replySender?.displayName || 'Pujangga',
+          type: replyingTo.type
+        };
+      }
+
       let lastText = "";
 
       if (selectedImage) {
@@ -264,7 +287,7 @@ export default function MessagesPage() {
         const audioFile = new File([audioBlob], `vn-${Date.now()}.mp3`, { type: 'audio/mpeg' });
         const audioUrl = await uploadAudio(audioFile);
         messageData = { ...messageData, type: 'voice_note', audioUrl };
-        lastText = "🎤 Suara";
+        lastText = "🎤 Pesan Suara";
       }
       else {
         messageData = { ...messageData, type: 'text', text: newMessage.trim() };
@@ -287,9 +310,61 @@ export default function MessagesPage() {
       setSelectedImage(null);
       setImagePreview(null);
       setAudioBlob(null);
+      setReplyingTo(null);
     } catch (e) {
         toast({ variant: 'destructive', title: "Gagal Mengirim" });
     } finally { setIsSending(false); }
+  };
+
+  const handleInitiateCall = async () => {
+    if (!firestore || !currentUser || !otherParticipant || !selectedChatId) return;
+    
+    setIsSending(true);
+    try {
+        const callsCol = collection(firestore, 'calls');
+        const callDoc = doc(callsCol);
+        
+        await setDoc(callDoc, {
+            callerId: currentUser.uid,
+            receiverId: otherParticipant.uid,
+            callerName: currentUser.displayName || 'Pujangga Elitera',
+            callerPhotoURL: currentUser.photoURL || '',
+            status: 'calling',
+            createdAt: serverTimestamp()
+        });
+
+        // Add Call Log Message to Chat History
+        const batch = writeBatch(firestore);
+        const msgRef = doc(collection(firestore, 'chats', selectedChatId, 'messages'));
+        
+        const callLogData = {
+            type: 'video_call' as const,
+            senderId: currentUser.uid,
+            callId: callDoc.id,
+            status: 'calling' as const,
+            createdAt: serverTimestamp(),
+        };
+
+        batch.set(msgRef, callLogData);
+        batch.update(doc(firestore, 'chats', selectedChatId), {
+            lastMessage: {
+                text: `🎥 Panggilan Video Dimulai`,
+                senderId: currentUser.uid,
+                timestamp: serverTimestamp(),
+            },
+            [`unreadCounts.${otherParticipant.uid}`]: increment(1)
+        });
+
+        await batch.commit();
+
+        setActiveCallId(callDoc.id);
+        setIsCaller(true);
+    } catch (error) {
+        console.error("Initiate call error:", error);
+        toast({ variant: 'destructive', title: "Gagal Menghubungi" });
+    } finally {
+        setIsSending(false);
+    }
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -369,14 +444,37 @@ export default function MessagesPage() {
   const handleGoBack = () => {
     router.push('/messages');
     setSelectedChatId(null);
+    setReplyingTo(null);
+  };
+
+  const handleDeleteChat = async () => {
+    if (!selectedChatId || !firestore) return;
+    if (confirm("Hapus seluruh sejarah percakapan ini secara permanen?")) {
+        try {
+            await updateDoc(doc(firestore, 'chats', selectedChatId), {
+                lastMessage: { text: "Percakapan dibersihkan.", timestamp: serverTimestamp(), senderId: 'system' }
+            });
+            toast({ title: "Arsip Dibersihkan" });
+        } catch (e) {
+            toast({ variant: 'destructive', title: "Gagal Menghapus" });
+        }
+    }
   };
 
   if (!currentUser) return null;
 
   return (
-    <div className="flex flex-col bg-background relative overflow-hidden transition-all duration-300" style={{ height: viewportHeight }}>
+    <div className="fixed inset-0 flex flex-col bg-background transition-all duration-300 overflow-hidden" style={{ height: viewportHeight }}>
       <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
+
+      {activeCallId && (
+        <VideoCall 
+            callId={activeCallId} 
+            isCaller={isCaller} 
+            onClose={() => setActiveCallId(null)} 
+        />
+      )}
 
       <AnimatePresence mode="wait">
         {!selectedChatId ? (
@@ -502,7 +600,7 @@ export default function MessagesPage() {
                 {otherParticipant ? (
                     <Link href={`/profile/${otherParticipant.username}`} className="flex items-center gap-4 flex-1 min-w-0 group">
                         <div className="relative">
-                            <Avatar className="h-11 w-11 md:h-14 md:w-14 border-2 border-background shadow-2xl transition-transform group-hover:scale-105 ring-1 ring-primary/10">
+                            <Avatar className="h-11 w-11 md:h-14 md:w-14 border-2 border-background shadow-2xl transition-transform group-hover:scale-110 ring-1 ring-primary/10">
                                 <AvatarImage src={otherParticipant.photoURL} className="object-cover" />
                                 <AvatarFallback className="bg-primary/10 text-primary font-black">{otherParticipant.displayName[0]}</AvatarFallback>
                             </Avatar>
@@ -521,8 +619,34 @@ export default function MessagesPage() {
                 )}
 
                 <div className="flex items-center gap-1.5 md:gap-3">
-                    <Button variant="ghost" size="icon" className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5 hidden sm:flex"><Phone className="h-4.5 w-4.5"/></Button>
-                    <Button variant="ghost" size="icon" className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5"><MoreVertical className="h-4.5 w-4.5"/></Button>
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5"
+                        onClick={handleInitiateCall}
+                        disabled={isSending}
+                    >
+                        {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4.5 w-4.5"/>}
+                    </Button>
+                    
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="rounded-2xl h-11 w-11 text-muted-foreground hover:text-primary hover:bg-primary/5">
+                                <MoreVertical className="h-4.5 w-4.5"/>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 rounded-[1.5rem] p-2 border-none shadow-2xl">
+                            <DropdownMenuItem className="rounded-xl h-11 gap-3 font-bold" asChild>
+                                <Link href={`/profile/${otherParticipant?.username}`}>
+                                    <UserIcon className="h-4 w-4 text-primary" /> Lihat Profil
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="my-1 opacity-50" />
+                            <DropdownMenuItem className="rounded-xl h-11 gap-3 font-bold text-rose-500" onClick={handleDeleteChat}>
+                                <Trash2 className="h-4 w-4" /> Bersihkan Arsip
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </header>
 
@@ -555,6 +679,16 @@ export default function MessagesPage() {
                                             </div>
                                         )}
                                         <div className={cn("flex group/msg relative", isMe ? "justify-end pl-12" : "justify-start pr-12")}>
+                                            <button 
+                                              onClick={() => setReplyingTo(msg)}
+                                              className={cn(
+                                                "absolute top-1/2 -translate-y-1/2 p-2 rounded-full bg-muted/50 text-muted-foreground opacity-0 group-hover/msg:opacity-100 transition-all hover:bg-primary hover:text-white active:scale-90 shadow-sm",
+                                                isMe ? "-left-12" : "-right-12"
+                                              )}
+                                            >
+                                              <Reply className={cn("h-4 w-4", isMe ? "" : "-scale-x-100")} />
+                                            </button>
+
                                             <div className={cn(
                                                 "max-w-full shadow-sm transition-all relative",
                                                 isMe 
@@ -562,6 +696,19 @@ export default function MessagesPage() {
                                                     : "bg-card border border-border/50 text-foreground rounded-[2rem] rounded-tl-none shadow-md",
                                                 msg.type === 'image' ? "p-2" : "p-5 md:p-6"
                                             )}>
+                                                {msg.replyTo && (
+                                                  <div className={cn(
+                                                    "mb-3 p-3 rounded-xl border-l-4 text-[11px] leading-relaxed",
+                                                    isMe ? "bg-white/10 border-white/30" : "bg-muted/50 border-primary/30"
+                                                  )}>
+                                                    <div className="flex items-center gap-1.5 mb-1 opacity-60">
+                                                        <Reply className="h-3 w-3" />
+                                                        <p className="font-black uppercase tracking-widest">@{msg.replyTo.senderName}</p>
+                                                    </div>
+                                                    <p className="line-clamp-2 italic opacity-80">{msg.replyTo.text}</p>
+                                                  </div>
+                                                )}
+
                                                 {msg.type === 'text' && <p className="text-sm md:text-base leading-relaxed font-medium">{msg.text}</p>}
                                                 
                                                 {msg.type === 'image' && (
@@ -578,6 +725,23 @@ export default function MessagesPage() {
 
                                                 {msg.type === 'voice_note' && (
                                                     <VoiceNotePlayer audioUrl={msg.audioUrl} isMe={isMe} />
+                                                )}
+
+                                                {msg.type === 'video_call' && (
+                                                    <div className="flex items-center gap-4 py-1 pr-4">
+                                                        <div className={cn(
+                                                            "h-12 w-12 rounded-full flex items-center justify-center shrink-0 shadow-inner",
+                                                            isMe ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
+                                                        )}>
+                                                            <VideoIcon className="h-6 w-6" />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-black text-sm uppercase tracking-widest">Panggilan Video</p>
+                                                            <p className={cn("text-[9px] font-bold uppercase tracking-widest opacity-60 mt-0.5", isMe ? "text-white" : "text-primary")}>
+                                                                {isMe ? 'Panggilan Keluar' : 'Panggilan Masuk'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
                                                 )}
                                                 
                                                 <div className={cn(
@@ -609,12 +773,45 @@ export default function MessagesPage() {
                 </div>
             </ScrollArea>
 
-            <div className="p-3 md:p-10 border-t bg-background/95 backdrop-blur-2xl shrink-0 z-30 relative pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.15)]">
+            <div className="p-3 md:p-10 border-t bg-background/95 backdrop-blur-2xl shrink-0 z-30 relative pb-[max(0.2rem,env(safe-area-inset-bottom))] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.15)]">
                 <div className="max-w-4xl mx-auto relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/20 to-primary/30 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
                     
                     <div className="relative flex flex-col gap-4">
                         <AnimatePresence>
+                            {replyingTo && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 10, height: 0 }} 
+                                animate={{ opacity: 1, y: 0, height: 'auto' }} 
+                                exit={{ opacity: 0, scale: 0.95, height: 0 }} 
+                                className="p-4 bg-primary/5 rounded-[1.5rem] border border-primary/20 flex items-start gap-4 mb-1 relative overflow-hidden"
+                              >
+                                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-primary" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Reply className="h-3 w-3 text-primary" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                                      @{selectedChat?.participants.find(p => p.uid === replyingTo.senderId)?.displayName || 'Pujangga'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground truncate italic">
+                                    {replyingTo.type === 'text' ? replyingTo.text : 
+                                     replyingTo.type === 'image' ? '📷 Foto Terlampir' : 
+                                     replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : 
+                                     replyingTo.type === 'video_call' ? '🎥 Log Panggilan' : 'Media'}
+                                  </p>
+                                </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => setReplyingTo(null)}
+                                  className="h-8 w-8 rounded-full text-muted-foreground hover:text-rose-500"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </motion.div>
+                            )}
+
                             {imagePreview && (
                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="p-2 bg-muted/50 rounded-[1.5rem] border border-primary/10 flex items-center gap-4">
                                     <div className="h-16 w-16 rounded-xl overflow-hidden shadow-md">
@@ -635,9 +832,7 @@ export default function MessagesPage() {
                                     <div className="flex-1">
                                         <p className="text-[10px] font-black uppercase tracking-widest text-primary">Rekaman Tersedia</p>
                                     </div>
-                                    <Button variant="ghost" size="icon" onClick={() => setAudioBlob(null)} className="text-rose-500 rounded-full h-10 w-10">
-                                        <Trash2 className="h-5 w-5" />
-                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => setAudioBlob(null)} className="text-rose-500 rounded-full h-10 w-10"><Trash2 className="h-5 w-5" /></Button>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -695,7 +890,7 @@ export default function MessagesPage() {
                                             onClick={stopRecording} 
                                             className="h-11 w-11 md:h-14 md:w-14 rounded-2xl bg-rose-500 hover:bg-rose-600 shadow-xl"
                                         >
-                                            <Check className="h-6 w-6 text-white" />
+                                            <CheckCheck className="h-6 w-6 text-white" />
                                         </Button>
                                     ) : (
                                         <Button 
@@ -721,7 +916,7 @@ export default function MessagesPage() {
                     <div className="flex items-center gap-3">
                         <Zap className="h-3 w-3 text-primary animate-pulse" />
                         <p className="text-[9px] font-black uppercase tracking-[0.5em] text-muted-foreground whitespace-nowrap">
-                            Enkripsi Sastra Aktif • Elitera System v6.5
+                            Enkripsi Sastra Aktif • Elitera System v7.7
                         </p>
                     </div>
                 </div>
@@ -730,7 +925,6 @@ export default function MessagesPage() {
         )}
       </AnimatePresence>
 
-      {/* Full Screen Image Preview Dialog */}
       <Dialog open={!!fullPreviewUrl} onOpenChange={() => setFullPreviewUrl(null)}>
         <DialogContent 
             className="max-w-none w-screen h-[100dvh] p-0 border-none bg-black/95 backdrop-blur-2xl z-[500] flex flex-col items-center justify-center rounded-none"
@@ -757,7 +951,7 @@ export default function MessagesPage() {
                         className="text-white hover:bg-white/10 rounded-2xl h-12 px-6 font-black uppercase text-[10px] tracking-widest gap-2 bg-black/20 backdrop-blur-md border border-white/10"
                         onClick={() => fullPreviewUrl && downloadImage(fullPreviewUrl)}
                     >
-                        <Download className="h-4 w-4" /> Simpan Gambar
+                        <X className="h-4 w-4" /> Simpan Gambar
                     </Button>
                 </div>
             </div>
