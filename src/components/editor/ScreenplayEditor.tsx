@@ -1,12 +1,10 @@
-
 'use client';
 
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import type { ScreenplayBlock } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, FileText, Layout, Hash } from 'lucide-react';
+import { Clock, FileText, Hash } from 'lucide-react';
 
 interface ScreenplayEditorProps {
   initialContent: string;
