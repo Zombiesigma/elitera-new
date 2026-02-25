@@ -5,29 +5,37 @@ import Link from 'next/link';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
-import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, increment, writeBatch, getDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, serverTimestamp, query, orderBy, updateDoc, increment, writeBatch } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Eye, BookOpen, Send, MessageCircle, Loader2, Edit, Layers, Heart, Share2, Users, Globe, Download, Clapperboard, CheckCircle2, Clock, Star, Sparkles } from "lucide-react";
+import { 
+  Eye, 
+  BookOpen, 
+  Send, 
+  MessageCircle, 
+  Loader2, 
+  PenTool, 
+  Layers, 
+  Heart, 
+  Share2, 
+  Sparkles, 
+  Clapperboard, 
+  CheckCircle2, 
+  Music2, 
+  Info,
+  ChevronRight
+} from "lucide-react";
 import type { Book, Comment, User, Favorite } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { BookCommentItem } from '@/components/comments/BookCommentItem';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ShareBookDialog } from '@/components/ShareBookDialog';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function BookDetailsClient() {
   const params = useParams<{ id: string }>();
@@ -59,15 +67,17 @@ export default function BookDetailsClient() {
   const favoriteRef = useMemo(() => (
     (firestore && currentUser) ? doc(firestore, 'users', currentUser.uid, 'favorites', params.id) : null
   ), [firestore, currentUser, params.id]);
-  const { data: favoriteDoc, isLoading: isFavoriteLoading } = useDoc<Favorite>(favoriteRef);
+  const { data: favoriteDoc } = useDoc<Favorite>(favoriteRef);
 
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const viewIncremented = useRef(false);
+
+  const isFavorite = !!favoriteDoc;
+  const isAuthor = currentUser?.uid === book?.authorId;
 
   useEffect(() => {
     setIsMounted(true);
@@ -78,430 +88,298 @@ export default function BookDetailsClient() {
     }
   }, [book, bookRef]);
 
-  useEffect(() => {
-    setIsFavorite(!!favoriteDoc);
-  }, [favoriteDoc]);
-
-  const isAuthor = currentUser?.uid === book?.authorId;
-
   const handleToggleFavorite = async () => {
     if (!firestore || !currentUser || !bookRef || !book) {
-        toast({
-            variant: "destructive",
-            title: "Harap masuk",
-            description: "Anda harus masuk untuk menambahkan ke favorit.",
-        });
+        toast({ variant: "destructive", title: "Harap masuk" });
         return;
     };
     setIsTogglingFavorite(true);
-
     const favoriteDocRef = doc(firestore, 'users', currentUser.uid, 'favorites', params.id);
     const batch = writeBatch(firestore);
-
     try {
         if (isFavorite) {
             batch.delete(favoriteDocRef);
             batch.update(bookRef, { favoriteCount: increment(-1) });
         } else {
-            batch.set(favoriteDocRef, {
-                userId: currentUser.uid,
-                addedAt: serverTimestamp()
-            });
+            batch.set(favoriteDocRef, { userId: currentUser.uid, addedAt: serverTimestamp() });
             batch.update(bookRef, { favoriteCount: increment(1) });
         }
         await batch.commit();
-
-        if (!isFavorite && currentUser.uid !== book.authorId) {
-            const authorDoc = await getDoc(doc(firestore, 'users', book.authorId));
-             if (authorDoc.exists()) {
-                const authorProfile = authorDoc.data() as User;
-                if (authorProfile.notificationPreferences?.onBookFavorite !== false) {
-                    const notificationsCol = collection(firestore, 'users', book.authorId, 'notifications');
-                    addDoc(notificationsCol, {
-                        type: 'favorite' as const,
-                        text: `${currentUser.displayName} menyukai karya Anda: ${book.title}`,
-                        link: `/books/${params.id}`,
-                        actor: {
-                            uid: currentUser.uid,
-                            displayName: currentUser.displayName!,
-                            photoURL: currentUser.photoURL!,
-                        },
-                        read: false,
-                        createdAt: serverTimestamp()
-                    });
-                }
-             }
-        }
-
-        toast({
-            title: isFavorite ? "Dihapus dari Favorit" : "Ditambahkan ke Favorit",
-        });
+        toast({ title: isFavorite ? "Dihapus dari Favorit" : "Ditambahkan ke Favorit" });
     } catch (error) {
-        console.error("Error toggling favorite: ", error);
-        toast({
-            variant: "destructive",
-            title: "Gagal",
-            description: "Terjadi kesalahan. Silakan coba lagi.",
-        });
+        toast({ variant: "destructive", title: "Gagal" });
     } finally {
         setIsTogglingFavorite(false);
     }
   };
 
-  function handleCommentSubmit() {
+  const handleCommentSubmit = async () => {
     if (!newComment.trim() || !currentUser || !firestore || !book || !currentUserProfile) return;
-
     setIsSubmitting(true);
-    const commentsCol = collection(firestore, 'books', params.id, 'comments');
-    const commentData = {
-      text: newComment,
-      userId: currentUser.uid,
-      userName: currentUser.displayName,
-      userAvatarUrl: currentUser.photoURL,
-      username: currentUserProfile.username,
-      createdAt: serverTimestamp(),
-      likeCount: 0,
-      replyCount: 0,
-    };
-
-    addDoc(commentsCol, commentData)
-      .then(async () => {
+    try {
+        const commentsCol = collection(firestore, 'books', params.id, 'comments');
+        const commentData = {
+          text: newComment,
+          userId: currentUser.uid,
+          userName: currentUser.displayName,
+          userAvatarUrl: currentUser.photoURL,
+          username: currentUserProfile.username,
+          createdAt: serverTimestamp(),
+          likeCount: 0,
+          replyCount: 0,
+        };
+        await addDoc(commentsCol, commentData);
         setNewComment('');
-        if (currentUser.uid !== book.authorId) {
-            const authorDoc = await getDoc(doc(firestore, 'users', book.authorId));
-            if (authorDoc.exists()) {
-                const authorProfile = authorDoc.data() as User;
-                if (authorProfile.notificationPreferences?.onBookComment !== false) {
-                    const notificationsCol = collection(firestore, 'users', book.authorId, 'notifications');
-                    addDoc(notificationsCol, {
-                        type: 'comment' as const,
-                        text: `${currentUser.displayName} mengomentari karya Anda: ${book.title}`,
-                        link: `/books/${params.id}`,
-                        actor: {
-                            uid: currentUser.uid,
-                            displayName: currentUser.displayName!,
-                            photoURL: currentUser.photoURL!,
-                        },
-                        read: false,
-                        createdAt: serverTimestamp(),
-                    });
-                }
-            }
-        }
-      })
-      .catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: commentsCol.path,
-          operation: 'create',
-          requestResourceData: commentData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
-      .finally(() => {
+        toast({ variant: 'success', title: "Ulasan Terkirim" });
+    } catch (e) {
+        toast({ variant: 'destructive', title: "Gagal mengirim ulasan" });
+    } finally {
         setIsSubmitting(false);
-      });
-  };
-
-  const handleExternalShare = async () => {
-    if (!book) return;
-    const shareData = {
-      title: book.title,
-      text: `Lihat ${book.type === 'screenplay' ? 'naskah' : 'buku'} "${book.title}" oleh ${book.authorName} di Elitera!`,
-      url: typeof window !== 'undefined' ? window.location.href : '',
-    };
-
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (error) {
-        console.log('Share cancelled or failed', error);
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(shareData.url);
-        toast({
-          title: "Tautan Disalin",
-          description: "Tautan karya telah disalin ke clipboard Anda.",
-        });
-      } catch (error) {
-        console.error('Failed to copy link:', error);
-        toast({
-          variant: "destructive",
-          title: "Gagal Menyalin",
-          description: "Tidak dapat menyalin tautan ke clipboard.",
-        });
-      }
     }
   };
 
-  const handleDownload = () => {
-    if (!book?.fileUrl) return;
-    window.open(book.fileUrl, '_blank');
-    toast({
-        title: "Mengunduh Berkas",
-        description: "Naskah asli sedang dibuka di jendela baru.",
-    });
-  };
+  if (isBookLoading || isAuthorLoading) return <BookDetailsSkeleton />;
+  if (!book) notFound();
 
-  if (isBookLoading || isAuthorLoading) {
-    return <BookDetailsSkeleton />;
-  }
-
-  if (!book) {
-    notFound();
-  }
-
-  const isScreenplay = book.type === 'screenplay';
+  const hasSoundtrack = book.playlist && book.playlist.length > 0;
 
   return (
-    <div className="relative max-w-md mx-auto px-0">
-      {/* Immersive Background */}
-      <div className="fixed top-0 left-0 w-full h-[500px] -z-10 overflow-hidden opacity-30 blur-[100px] pointer-events-none">
-          <Image src={book.coverUrl} alt="" fill className="object-cover" />
-      </div>
+    <div className="relative max-w-lg mx-auto pb-32 px-4">
+      {/* Decorative background blobs */}
+      <div className="absolute top-0 right-[-10%] w-64 h-64 bg-primary/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
+      <div className="absolute bottom-1/2 left-[-10%] w-64 h-64 bg-accent/5 rounded-full blur-[100px] -z-10 pointer-events-none" />
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 20 }} 
+        animate={{ opacity: 1, y: 0 }} 
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="pb-32 space-y-8"
+        className="space-y-10 py-6"
       >
-        {/* Cover Hero Section */}
-        <section className="relative px-6 pt-10">
-            <div className="relative aspect-[2/3] w-full max-w-[260px] mx-auto group shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] rounded-[2.5rem] overflow-hidden border-2 border-white/10 ring-1 ring-black/5">
-                <Image
-                  src={book.coverUrl}
-                  alt={`Sampul ${book.title}`}
-                  fill
-                  className="object-cover bg-muted transition-transform duration-1000 group-hover:scale-110"
-                  sizes="(max-width: 768px) 100vw, 400px"
-                  priority
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60" />
-                
-                {book.isCompleted && (
-                    <div className="absolute top-4 left-4 bg-emerald-500 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center gap-1.5 backdrop-blur-md">
-                        <CheckCircle2 className="h-3 w-3" /> Tamat
-                    </div>
-                )}
-            </div>
-        </section>
-
-        {/* Info Header */}
-        <section className="px-6 text-center space-y-4">
-            <div className="flex flex-wrap items-center justify-center gap-2">
-                <Badge variant="secondary" className="px-3 py-1 bg-primary/10 text-primary border-primary/20 text-[10px] font-black uppercase tracking-widest">
+        {/* Cover Section */}
+        <div className="relative aspect-[2/3] w-full shadow-[0_30px_80px_-15px_rgba(0,0,0,0.3)] rounded-[2.5rem] md:rounded-[3rem] overflow-hidden border border-white/10 group">
+            <Image 
+                src={book.coverUrl} 
+                alt={book.title} 
+                fill 
+                className="object-cover transition-transform duration-700 group-hover:scale-105" 
+                priority 
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+            
+            <div className="absolute top-6 left-6 flex flex-col gap-2">
+                <Badge className="bg-primary/90 backdrop-blur-md text-white border-none uppercase text-[9px] font-black px-4 py-1.5 rounded-full tracking-widest shadow-xl">
                     {book.genre}
                 </Badge>
-                {isScreenplay && (
-                    <Badge variant="outline" className="px-3 py-1 gap-1.5 border-orange-500/30 text-orange-500 bg-orange-500/5 font-black uppercase text-[10px]">
-                        <Clapperboard className="h-3 w-3" /> Skenario
+                {book.isCompleted && (
+                    <Badge className="bg-emerald-500/90 backdrop-blur-md text-white border-none uppercase text-[9px] font-black px-4 py-1.5 rounded-full tracking-widest shadow-xl">
+                        <CheckCircle2 className="h-3 w-3 mr-1.5" /> Tamat
                     </Badge>
                 )}
             </div>
 
-            <h1 className="text-3xl font-headline font-black text-foreground leading-tight tracking-tight italic">
-                {book.title}
-            </h1>
-
-            <Link href={author ? `/profile/${author.username}` : '#'} className="inline-flex items-center gap-3 group bg-muted/30 hover:bg-primary/5 p-1 pr-4 rounded-full transition-all border border-transparent hover:border-primary/20 mx-auto">
-                <Avatar className="h-8 w-8 ring-2 ring-background">
-                    <AvatarImage src={book.authorAvatarUrl} alt={book.authorName} />
-                    <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">{book.authorName?.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div className="text-left">
-                    <p className="text-[8px] uppercase tracking-[0.2em] text-muted-foreground font-black leading-none">Pujangga</p>
-                    <span className="font-bold text-xs group-hover:text-primary transition-colors">{book.authorName}</span>
+            {hasSoundtrack && (
+                <div className="absolute top-6 right-6">
+                    <div className="bg-indigo-600/90 backdrop-blur-md text-white px-4 py-1.5 rounded-full flex items-center gap-2 border border-white/20 shadow-2xl animate-pulse">
+                        <Music2 className="h-3.5 w-3.5" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Soundtrack Aktif</span>
+                    </div>
                 </div>
-            </Link>
-        </section>
+            )}
+        </div>
 
-        {/* Stats Grid */}
-        <section className="px-6">
-            <Card className="border-none bg-card/40 backdrop-blur-md shadow-xl rounded-[2rem] overflow-hidden border border-white/5 shadow-primary/5">
-                <CardContent className="p-6 grid grid-cols-3 divide-x divide-border/50 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                        <Eye className="h-4 w-4 text-primary opacity-60" />
-                        <span className="font-black text-sm">{isMounted ? new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(book.viewCount) : '...'}</span>
-                        <span className="text-[8px] uppercase tracking-widest text-muted-foreground font-bold">Dilihat</span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1">
-                        <Heart className="h-4 w-4 text-rose-500 opacity-60" />
-                        <span className="font-black text-sm">{isMounted ? new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(book.favoriteCount) : '...'}</span>
-                        <span className="text-[8px] uppercase tracking-widest text-muted-foreground font-bold">Suka</span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1">
-                        <Layers className="h-4 w-4 text-accent opacity-60" />
-                        <span className="font-black text-sm">{isMounted ? book.chapterCount ?? 0 : '...'}</span>
-                        <span className="text-[8px] uppercase tracking-widest text-muted-foreground font-bold">{isScreenplay ? 'Bagian' : 'Bab'}</span>
-                    </div>
-                </CardContent>
-            </Card>
-        </section>
-
-        {/* Primary Actions */}
-        <section className="px-6 flex flex-col gap-3">
-            <Button size="lg" className="w-full h-16 text-sm font-black uppercase tracking-[0.2em] shadow-2xl shadow-primary/30 rounded-2xl group overflow-hidden relative" asChild>
-                <Link href={`/books/${book.id}/read`}>
-                    <span className="relative z-10 flex items-center gap-2">
-                        {isScreenplay ? <Clapperboard className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
-                        {isScreenplay ? 'Mulai Naskah' : 'Mulai Membaca'}
-                    </span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary opacity-0 group-hover:opacity-10 transition-opacity" />
-                </Link>
-            </Button>
+        {/* Info Section */}
+        <div className="space-y-8 px-2">
+            <div className="space-y-3">
+                <h1 className="text-4xl md:text-5xl font-headline font-black leading-[1.1] tracking-tight italic">
+                    {book.title}
+                </h1>
+                
+                <div className="flex items-center gap-2">
+                    <div className="h-1 w-12 bg-primary rounded-full" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/60">Arsip Mahakarya Elitera</p>
+                </div>
+            </div>
             
-            <div className="flex gap-3">
-                <Button 
-                    variant="outline" 
-                    className={cn(
-                        "flex-1 h-14 rounded-2xl border-2 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95",
-                        isFavorite ? "bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/20" : "bg-card/50 hover:bg-rose-500/5 hover:border-rose-500/20 hover:text-rose-500"
-                    )}
-                    onClick={handleToggleFavorite} 
-                    disabled={isTogglingFavorite || isFavoriteLoading}
-                >
-                    {isTogglingFavorite ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Heart className={cn("h-4 w-4 mr-2", isFavorite && "fill-current scale-110")}/>
-                    )}
-                    {isFavorite ? 'Disukai' : 'Sukai Karya'}
-                </Button>
-
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="h-14 w-14 rounded-2xl border-2 bg-card/50 hover:bg-primary/5 transition-all shadow-lg active:scale-95">
-                            <Share2 className="h-5 w-5" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 border-none shadow-2xl bg-background/95 backdrop-blur-xl">
-                        <DropdownMenuItem className="rounded-xl gap-3 py-3 font-bold" onSelect={handleExternalShare}>
-                            <Share2 className="h-4 w-4 text-primary" /> Salin Tautan
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="rounded-xl gap-3 py-3 font-bold" onSelect={() => setIsShareDialogOpen(true)}>
-                            <Send className="h-4 w-4 text-primary" /> Kirim Pesan
-                        </DropdownMenuItem>
-                        {book.fileUrl && (
-                            <DropdownMenuItem className="rounded-xl gap-3 py-3 font-bold" onSelect={handleDownload}>
-                                <Download className="h-4 w-4 text-primary" /> Unduh PDF
-                            </DropdownMenuItem>
-                        )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                <Link href={`/profile/${book.authorUsername}`} className="flex items-center gap-4 bg-card/50 backdrop-blur-sm p-2.5 pr-8 rounded-full border shadow-xl hover:shadow-2xl hover:border-primary/20 transition-all group shrink-0">
+                    <div className="relative">
+                        <Avatar className="h-12 w-12 border-2 border-background shadow-md group-hover:scale-105 transition-transform">
+                            <AvatarImage src={book.authorAvatarUrl} className="object-cover" />
+                            <AvatarFallback className="bg-primary/5 text-primary font-black">{book.authorName.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="absolute -bottom-0.5 -right-0.5 bg-primary p-1 rounded-full border-2 border-background">
+                            <CheckCircle2 className="h-2 w-2 text-white" />
+                        </div>
+                    </div>
+                    <div className="text-left">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-primary/60">Arsitek Narasi</p>
+                        <p className="font-black text-base">{book.authorName}</p>
+                    </div>
+                </Link>
 
                 {isAuthor && (
-                    <Button variant="outline" className="h-14 w-14 rounded-2xl border-2 bg-card/50 hover:bg-accent/10 transition-all shadow-lg active:scale-95" asChild>
+                    <Button variant="outline" className="rounded-full border-2 h-14 px-8 font-black uppercase text-[10px] tracking-[0.2em] shadow-lg hover:bg-primary hover:text-white hover:border-primary transition-all active:scale-95" asChild>
                         <Link href={`/books/${book.id}/edit`}>
-                            <Edit className="h-5 w-5 text-accent" />
+                            <PenTool className="mr-2.5 h-4 w-4" /> Edit Karya
                         </Link>
                     </Button>
                 )}
             </div>
-        </section>
 
-        {/* Synopsis Area */}
-        <section className="px-6">
-            <div className="bg-card/30 backdrop-blur-sm rounded-[2rem] p-8 border border-white/5 space-y-4 shadow-inner">
-                <h2 className="text-xs font-black uppercase tracking-[0.3em] text-primary/60 flex items-center gap-2">
-                    <Sparkles className="h-3 w-3" /> Intisari Cerita
-                </h2>
-                <p className="text-foreground/80 leading-relaxed text-base italic font-serif">
-                    "{book.synopsis}"
+            {/* Stats Grid */}
+            <div className="grid grid-cols-3 gap-3">
+                {[
+                    { label: 'Jejak Baca', value: book.viewCount, icon: Eye, color: 'text-primary' },
+                    { label: 'Apresiasi', value: book.favoriteCount, icon: Heart, color: 'text-rose-500' },
+                    { label: 'Total Bab', value: book.chapterCount, icon: Layers, color: 'text-indigo-500' }
+                ].map((stat, i) => (
+                    <div key={i} className="bg-muted/30 backdrop-blur-sm p-5 rounded-[2rem] border border-white/5 shadow-inner group">
+                        <div className="flex flex-col items-center text-center gap-1">
+                            <div className={cn("p-2 rounded-xl bg-white/50 mb-1 transition-transform group-hover:scale-110", stat.color)}>
+                                <stat.icon className="h-4 w-4" />
+                            </div>
+                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{stat.label}</p>
+                            <p className="font-black text-xl tracking-tighter">
+                                {isMounted ? new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(stat.value) : '...'}
+                            </p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+
+        {/* Primary Actions */}
+        <div className="space-y-4">
+            <div className="grid grid-cols-5 gap-3">
+                <Button className="col-span-4 h-16 rounded-[1.5rem] md:rounded-[2rem] font-black uppercase tracking-[0.2em] text-sm shadow-2xl shadow-primary/30 active:scale-[0.98] transition-all" asChild>
+                    <Link href={`/books/${book.id}/read`}>
+                        {book.type === 'screenplay' ? <Clapperboard className="mr-3 h-5 w-5" /> : <BookOpen className="mr-3 h-5 w-5" />}
+                        Mulai {book.type === 'screenplay' ? 'Naskah' : 'Membaca'}
+                    </Link>
+                </Button>
+                <Button variant="outline" className="h-16 rounded-[1.5rem] md:rounded-[2rem] border-2 shadow-xl hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.98]" onClick={() => setIsShareDialogOpen(true)}>
+                    <Share2 className="h-6 w-6" />
+                </Button>
+            </div>
+
+            <Button 
+                variant="ghost" 
+                className={cn(
+                    "w-full h-14 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all duration-500",
+                    isFavorite ? "text-rose-500 bg-rose-500/5 hover:bg-rose-500/10" : "bg-muted/50 hover:bg-muted/80 text-muted-foreground"
+                )}
+                onClick={handleToggleToggleFavorite}
+                disabled={isTogglingFavorite}
+            >
+                <Heart className={cn("mr-2.5 h-4 w-4 transition-transform duration-500", isFavorite && "fill-current scale-110")} />
+                {isFavorite ? 'Mahakarya Favorit' : 'Simpan ke Favorit'}
+            </Button>
+        </div>
+
+        {/* Synopsis Section */}
+        <section className="space-y-6">
+            <div className="flex items-center gap-4 px-2">
+                <div className="p-2 rounded-xl bg-orange-500/10 text-orange-600">
+                    <Sparkles className="h-4 w-4" />
+                </div>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/60">Sinopsis Karya</h2>
+                <div className="h-px bg-border/50 flex-1" />
+            </div>
+            <div className="bg-card/50 backdrop-blur-md p-8 rounded-[2.5rem] border border-white/10 shadow-xl relative overflow-hidden group">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/20 via-primary/5 to-transparent" />
+                <p className="text-base md:text-lg leading-[1.8] italic font-serif text-foreground/80 first-letter:text-4xl first-letter:font-black first-letter:text-primary first-letter:mr-2 first-letter:float-left">
+                    {book.synopsis}
                 </p>
             </div>
         </section>
 
-        <Separator className="mx-6 opacity-30" />
-
-        {/* Discussion Section */}
-        <section className="px-6 space-y-8 pb-20">
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-headline font-black flex items-center gap-3">
-                    <MessageCircle className="h-5 w-5 text-primary"/> 
-                    Diskusi 
-                    <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full shadow-sm">{comments?.length || 0}</span>
-                </h2>
+        {/* Comments Section */}
+        <section className="space-y-10 pt-8">
+            <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-4">
+                    <div className="p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-600">
+                        <MessageCircle className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl md:text-2xl font-headline font-black tracking-tight">Suara Pembaca</h2>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">Apresiasi & Diskusi</p>
+                    </div>
+                </div>
+                <Badge className="rounded-full bg-primary/10 text-primary border-none px-4 py-1 font-black text-[10px]">{comments?.length || 0} Ulasan</Badge>
             </div>
 
             {currentUser && (
-                <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                        <Avatar className="h-9 w-9 shrink-0 ring-2 ring-background border border-border/50">
-                            <AvatarImage src={currentUser.photoURL ?? ''} alt={currentUser.displayName ?? ''} />
-                            <AvatarFallback className="bg-primary/5 text-primary text-[10px] font-black">{currentUser.displayName?.charAt(0) ?? 'U'}</AvatarFallback>
-                        </Avatar>
-                        <div className="relative flex-1 group">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-primary/10 to-accent/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition-opacity" />
-                            <Textarea 
-                                placeholder="Tulis ulasan inspiratif Anda..." 
-                                className="relative w-full min-h-[100px] bg-card/50 border-none shadow-inner focus-visible:ring-primary/20 resize-none rounded-2xl p-4 text-sm font-medium"
-                                value={newComment}
-                                onChange={(e) => setNewComment(e.target.value)}
-                                disabled={isSubmitting}
-                            />
-                        </div>
+                <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} className="space-y-4 px-2">
+                    <div className="relative group">
+                        <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-accent/20 rounded-[2rem] blur opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
+                        <Textarea 
+                            placeholder="Tuangkan ulasan puitismu di sini..." 
+                            className="relative rounded-[1.75rem] bg-muted/30 border-none min-h-[140px] p-6 font-medium text-sm focus-visible:ring-primary/20 shadow-inner"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                        />
                     </div>
-                    <div className="flex justify-end">
-                        <Button 
-                            className="rounded-full px-8 h-11 font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all active:scale-90" 
-                            onClick={handleCommentSubmit} 
-                            disabled={isSubmitting || !newComment.trim()}
-                        >
-                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Send className="h-4 w-4 mr-2"/>}
-                            Kirim Ulasan
-                        </Button>
-                    </div>
-                </div>
+                    <Button 
+                        className="w-full h-14 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl active:scale-[0.98] transition-all" 
+                        onClick={handleCommentSubmit} 
+                        disabled={isSubmitting || !newComment.trim()}
+                    >
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="mr-2 h-4 w-4" />}
+                        Publikasikan Ulasan
+                    </Button>
+                </motion.div>
             )}
-            
-            <div className="space-y-6">
-                {areCommentsLoading ? (
-                    <div className="flex flex-col items-center py-12 gap-4 opacity-40">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">Sinkronisasi Suara...</p>
-                    </div>
-                ) : (
-                    <div className="grid gap-6">
-                        {comments?.map(comment => (
-                            <BookCommentItem key={comment.id} bookId={params.id} comment={comment} currentUserProfile={currentUserProfile} />
-                        ))}
-                    </div>
-                )}
+
+            <div className="space-y-8 px-2">
+                <AnimatePresence mode="popLayout">
+                    {comments?.map((comment, idx) => (
+                        <BookCommentItem 
+                            key={comment.id} 
+                            bookId={params.id} 
+                            comment={comment} 
+                            currentUserProfile={currentUserProfile} 
+                        />
+                    ))}
+                </AnimatePresence>
                 
-                {!areCommentsLoading && comments?.length === 0 && (
-                    <div className="text-center py-20 border-2 border-dashed border-muted/30 rounded-[2.5rem] opacity-40">
-                        <Star className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
-                        <p className="font-headline text-xl font-bold">Jadilah Yang Pertama</p>
-                        <p className="text-[10px] uppercase font-black tracking-widest mt-2">Apresiasi puitis dimulai dari Anda</p>
+                {(!comments || comments.length === 0) && (
+                    <div className="text-center py-20 opacity-20 flex flex-col items-center gap-4">
+                        <MessageCircle className="h-16 w-16" />
+                        <p className="font-black uppercase tracking-[0.3em] text-[10px]">Belum ada diskusi untuk karya ini.</p>
                     </div>
                 )}
             </div>
         </section>
       </motion.div>
+
+      {/* Share Dialog */}
+      <ShareBookDialog book={book} open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />
       
-      {book && <ShareBookDialog book={book} open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />}
+      {/* Footer Branding */}
+      <div className="text-center opacity-20 select-none grayscale py-16">
+          <div className="flex items-center justify-center gap-3">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-[10px] font-black uppercase tracking-[0.5em]">Elitera Digital Sastra</span>
+          </div>
+      </div>
     </div>
   );
 }
 
 function BookDetailsSkeleton() {
     return (
-        <div className="max-w-md mx-auto px-6 pt-10 space-y-8 animate-pulse">
-            <Skeleton className="aspect-[2/3] w-full max-w-[260px] mx-auto rounded-[2rem]" />
-            <div className="space-y-4 text-center">
-                <Skeleton className="h-6 w-24 mx-auto rounded-full" />
-                <Skeleton className="h-12 w-3/4 mx-auto rounded-xl" />
-                <Skeleton className="h-10 w-48 mx-auto rounded-full" />
+        <div className="max-w-lg mx-auto p-6 space-y-10 animate-pulse">
+            <Skeleton className="aspect-[2/3] w-full rounded-[2.5rem]" />
+            <div className="space-y-4">
+                <Skeleton className="h-12 w-3/4 rounded-full" />
+                <Skeleton className="h-6 w-1/2 rounded-full" />
             </div>
-            <Skeleton className="h-24 w-full rounded-[2rem]" />
-            <div className="space-y-3">
-                <Skeleton className="h-16 w-full rounded-2xl" />
-                <div className="flex gap-3">
-                    <Skeleton className="h-14 flex-1 rounded-2xl" />
-                    <Skeleton className="h-14 w-14 rounded-2xl" />
-                </div>
+            <div className="grid grid-cols-3 gap-4">
+                <Skeleton className="h-24 rounded-[2rem]" />
+                <Skeleton className="h-24 rounded-[2rem]" />
+                <Skeleton className="h-24 rounded-[2rem]" />
             </div>
+            <Skeleton className="h-64 w-full rounded-[2.5rem]" />
         </div>
-    )
+    );
 }
