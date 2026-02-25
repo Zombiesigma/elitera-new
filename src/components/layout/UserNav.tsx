@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -29,7 +30,8 @@ import {
   Sparkles,
   MessageSquare,
   Bot,
-  Info
+  Info,
+  LayoutGrid
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -57,7 +59,6 @@ export function UserNav() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isLogoutAlertOpen, setIsLogoutAlertOpen] = useState(false);
 
-  // Safety cleanup: Ensure body is interactive when overlays are closed
   useEffect(() => {
     if (!isSheetOpen && !isLogoutAlertOpen) {
         if (typeof document !== 'undefined') {
@@ -71,6 +72,7 @@ export function UserNav() {
   const { data: userProfile } = useDoc<AppUser>(userProfileRef);
   
   const isAdmin = userProfile?.role?.toLowerCase() === 'admin';
+  const isAuthor = userProfile?.role === 'penulis' || isAdmin;
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.toggle('dark');
@@ -78,11 +80,9 @@ export function UserNav() {
   };
 
   const handleSignOut = async () => {
-    // 1. Instantly close all UI layers
     setIsLogoutAlertOpen(false);
     setIsSheetOpen(false);
     
-    // 2. Force interaction recovery BEFORE sign-out redirect
     if (typeof document !== 'undefined') {
         document.body.style.pointerEvents = 'auto';
         document.body.style.overflow = 'auto';
@@ -109,7 +109,10 @@ export function UserNav() {
             )}
         >
             <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-xl bg-muted group-hover:bg-primary group-hover:text-white transition-all duration-300 shadow-sm">
+                <div className={cn(
+                    "p-2.5 rounded-xl bg-muted group-hover:bg-primary group-hover:text-white transition-all duration-300 shadow-sm",
+                    className?.includes('bg-primary') && "bg-primary text-white"
+                )}>
                     <Icon className="h-4.5 w-4.5" />
                 </div>
                 <div className="flex flex-col">
@@ -173,7 +176,7 @@ export function UserNav() {
             </div>
           </div>
           
-          <div className="flex-grow overflow-y-auto custom-scrollbar">
+          <div className="flex-grow overflow-y-auto">
             <nav className="flex flex-col gap-1.5 p-4">
               {isAdmin && (
                  <NavLink 
@@ -183,6 +186,16 @@ export function UserNav() {
                     description="Otoritas dan moderasi sistem"
                     className="bg-rose-500/5 border border-rose-500/10 mb-4" 
                  />
+              )}
+
+              {isAuthor && (
+                <NavLink 
+                    href="/studio" 
+                    icon={LayoutGrid} 
+                    label="Studio Elitera" 
+                    description="Manajemen karya & kolaborasi"
+                    className="bg-primary/5 border border-primary/10 mb-4" 
+                />
               )}
               
               <div className="space-y-1 mb-6">
@@ -276,22 +289,6 @@ export function UserNav() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.05);
-          border-radius: 10px;
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.05);
-        }
-      `}</style>
     </>
   );
 }
