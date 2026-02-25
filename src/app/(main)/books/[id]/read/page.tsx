@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -28,7 +27,8 @@ import {
   FileText,
   Bookmark,
   Video,
-  Layers
+  Layers,
+  Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
@@ -40,16 +40,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { searchYouTube } from '@/app/actions/music';
+import { searchYouTube, getPreviewAudioUrl } from '@/app/actions/music';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Badge } from '@/components/ui/badge';
-
-declare global {
-  interface Window {
-    onYouTubeIframeAPIReady: () => void;
-    YT: any;
-  }
-}
+import { useToast } from '@/hooks/use-toast';
 
 type ReadingTheme = 'light' | 'dark' | 'sepia' | 'paper';
 type FontFamily = 'font-serif' | 'font-sans' | 'font-mono';
@@ -59,6 +53,7 @@ const PAPER_TEXTURE_URL = "https://images.unsplash.com/photo-1586075010923-2dd45
 export default function ReadPage() {
   const params = useParams<{ id: string }>();
   const firestore = useFirestore();
+  const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   
@@ -72,18 +67,15 @@ export default function ReadPage() {
 
   const [activeTrack, setActiveTrack] = useState<MusicTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [volume, setVolume] = useState(0.5);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const ytPlayerRef = useRef<any>(null);
-  const [isYtApiReady, setIsYtApiReady] = useState(false);
-  const [queuedVideoId, setQueuedVideoId] = useState<string | null>(null);
+  
   const [musicSearchQuery, setMusicSearchQuery] = useState("");
   const [ytResults, setYtResults] = useState<MusicTrack[]>([]);
   const [isSearchingYt, setIsSearchingYt] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const isPlayerReady = (player: any) => player && typeof player.playVideo === 'function';
 
   const bookRef = useMemo(() => (firestore ? doc(firestore, 'books', params.id) : null), [firestore, params.id]);
   const { data: book, isLoading: isBookLoading } = useDoc<Book>(bookRef);
@@ -112,63 +104,46 @@ export default function ReadPage() {
     );
   }, [musicList, musicSearchQuery]);
 
-  const playTrack = (track: MusicTrack) => {
-    if (track.source === 'youtube') {
-        if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
-        if (isPlayerReady(ytPlayerRef.current)) {
-            ytPlayerRef.current.loadVideoById(track.id);
+  /**
+   * Memutar trek audio secara instan dengan mengambil fresh stream URL.
+   */
+  const playTrack = async (track: MusicTrack) => {
+    if (!audioRef.current || !track.id) return;
+    
+    setIsAudioLoading(true);
+    setActiveTrack(track);
+    setIsPlaying(false);
+    
+    try {
+        const streamUrl = await getPreviewAudioUrl(track.id);
+        if (streamUrl) {
+            audioRef.current.src = streamUrl;
+            await audioRef.current.play();
             setIsPlaying(true);
         } else {
-            setQueuedVideoId(track.id!);
-            setIsPlaying(true);
+            toast({ variant: 'destructive', title: "Musik Gagal Dimuat", description: "Tidak dapat menjangkau aliran suara kawan." });
         }
-    } else if (track.source === 'internal') {
-        if (isPlayerReady(ytPlayerRef.current)) ytPlayerRef.current.pauseVideo();
-        if (audioRef.current && track.url) {
-            audioRef.current.src = track.url;
-            audioRef.current.play().then(() => setIsPlaying(true));
-        }
+    } catch (err) {
+        console.warn("Playback error:", err);
+        setIsPlaying(false);
+    } finally {
+        setIsAudioLoading(false);
     }
-    setActiveTrack(track);
   };
 
   const handlePlayNext = useCallback(() => {
     if (!book?.playlist || book.playlist.length === 0) return;
-    const currentIdx = book.playlist.findIndex(t => t.id === activeTrack?.id || t.url === activeTrack?.url);
+    const currentIdx = book.playlist.findIndex(t => t.id === activeTrack?.id);
     if (currentIdx !== -1 && currentIdx < book.playlist.length - 1) {
         playTrack(book.playlist[currentIdx + 1]);
     }
   }, [book?.playlist, activeTrack]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.onYouTubeIframeAPIReady = () => setIsYtApiReady(true);
-    if (!(window as any).YT) {
-        const tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        document.head.appendChild(tag);
-    } else { setIsYtApiReady(true); }
-  }, []);
-
-  useEffect(() => {
-    if (isYtApiReady && !ytPlayerRef.current) {
-        ytPlayerRef.current = new (window as any).YT.Player('yt-bg-player', {
-            height: '1', width: '1', videoId: '',
-            playerVars: { 'autoplay': 0, 'controls': 0 },
-            events: {
-                'onReady': (e: any) => {
-                    e.target.setVolume(volume * 100);
-                    if (queuedVideoId) { e.target.loadVideoById(queuedVideoId); setQueuedVideoId(null); }
-                },
-                'onStateChange': (e: any) => {
-                    if (e.data === 0) handlePlayNext();
-                    if (e.data === 1) setIsPlaying(true);
-                    if (e.data === 2) setIsPlaying(false);
-                }
-            }
-        });
+    if (audioRef.current) {
+        audioRef.current.volume = volume;
     }
-  }, [isYtApiReady, volume, queuedVideoId, handlePlayNext]);
+  }, [volume]);
 
   useEffect(() => {
     const h = setTimeout(async () => {
@@ -223,8 +198,14 @@ export default function ReadPage() {
       )}
       style={paperStyles}
     >
-      <audio ref={audioRef} onEnded={handlePlayNext} />
-      <div id="yt-bg-player" className="hidden" />
+      <audio 
+        ref={audioRef} 
+        onEnded={handlePlayNext} 
+        onError={() => {
+            setIsPlaying(false);
+            setIsAudioLoading(false);
+        }}
+      />
 
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <header className={cn(
@@ -237,12 +218,12 @@ export default function ReadPage() {
             </Button>
           </Link>
           
-          <div className="flex flex-col items-center flex-1 min-w-0 mx-1 md:mx-4">
-              <h2 className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-40 truncate w-full text-center">
+          <div className="flex flex-col items-center flex-1 min-w-0 mx-1 md:mx-4 text-center">
+              <h2 className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-40 truncate w-full">
                 Reading: {book.title}
               </h2>
               {isScreenplay && (
-                  <div className="flex items-center gap-1.5 text-[7px] md:text-[8px] font-bold text-primary uppercase whitespace-nowrap">
+                  <div className="flex items-center justify-center gap-1.5 text-[7px] md:text-[8px] font-bold text-primary uppercase whitespace-nowrap">
                       <Clapperboard className="h-2 w-2 md:h-2.5 md:w-2.5" /> INDUSTRIAL SCRIPT MODE
                   </div>
               )}
@@ -256,24 +237,32 @@ export default function ReadPage() {
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}
                       onClick={() => {
-                          if (activeTrack.source === 'youtube' && isPlayerReady(ytPlayerRef.current)) {
-                              if (isPlaying) ytPlayerRef.current.pauseVideo();
-                              else ytPlayerRef.current.playVideo();
-                          } else if (activeTrack.source === 'internal' && audioRef.current) {
-                              if (isPlaying) audioRef.current.pause();
-                              else audioRef.current.play();
+                          if (!audioRef.current || isAudioLoading) return;
+                          if (isPlaying) {
+                              audioRef.current.pause();
+                              setIsPlaying(false);
+                          } else {
+                              audioRef.current.play().catch(() => {});
+                              setIsPlaying(true);
                           }
-                          setIsPlaying(!isPlaying);
                       }} 
                       className="h-9 w-9 md:h-10 md:w-10 flex items-center justify-center relative"
                     >
                         <motion.div 
                           animate={{ rotate: isPlaying ? 360 : 0 }} 
                           transition={{ duration: 4, repeat: Infinity, ease: "linear" }} 
-                          className="h-7 w-7 md:h-8 md:w-8 rounded-full bg-zinc-900 border border-white/20 overflow-hidden shadow-lg"
+                          className={cn(
+                            "h-7 w-7 md:h-8 md:w-8 rounded-full bg-zinc-900 border border-white/20 overflow-hidden shadow-lg",
+                            isAudioLoading && "opacity-50 animate-pulse"
+                          )}
                         >
                             <img src={activeTrack.image} className="w-full h-full object-cover" alt="" />
                         </motion.div>
+                        {isAudioLoading && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <Loader2 className="h-4 w-4 text-white animate-spin" />
+                            </div>
+                        )}
                     </motion.button>
                 )}
             </AnimatePresence>
@@ -302,11 +291,13 @@ export default function ReadPage() {
                                         key={i} 
                                         className={cn(
                                             "flex items-center gap-3 w-full p-2.5 rounded-xl transition-all text-left",
-                                            activeTrack?.name === track.name ? "bg-primary/10 text-primary shadow-inner" : "hover:bg-muted/50"
+                                            activeTrack?.id === track.id ? "bg-primary/10 text-primary shadow-inner" : "hover:bg-muted/50"
                                         )}
                                         onClick={() => playTrack(track)}
                                     >
-                                        <img src={track.image} className="h-10 w-10 rounded-lg object-cover shadow-sm" alt="" />
+                                        <div className="relative">
+                                            <img src={track.image} className="h-10 w-10 rounded-lg object-cover shadow-sm" alt="" />
+                                        </div>
                                         <div className="min-w-0 flex-1">
                                             <p className="font-black text-xs truncate italic">"{track.name}"</p>
                                             <p className="text-[8px] font-bold opacity-60 uppercase mt-0.5">{track.artist}</p>
@@ -327,8 +318,8 @@ export default function ReadPage() {
                                 name: m.title,
                                 artist: m.artist,
                                 image: 'https://placehold.co/64x64?text=Music',
-                                url: m.url,
-                                source: 'internal'
+                                id: m.id,
+                                source: 'youtube'
                             })}>"{m.title}"</Button>
                         ))}
                         {ytResults.map((t, i) => (
