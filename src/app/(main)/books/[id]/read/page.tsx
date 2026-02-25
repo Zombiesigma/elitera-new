@@ -25,7 +25,10 @@ import {
   Pause,
   Sparkles,
   Clapperboard,
-  FileText
+  FileText,
+  Bookmark,
+  Video,
+  Layers
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useDoc, useCollection } from '@/firebase';
@@ -38,7 +41,8 @@ import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { searchYouTube } from '@/app/actions/music';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
+import { Badge } from '@/components/ui/badge';
 
 declare global {
   interface Window {
@@ -56,18 +60,16 @@ export default function ReadPage() {
   const params = useParams<{ id: string }>();
   const firestore = useFirestore();
   const [isMounted, setIsMounted] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   
-  // Reading Preferences - Paper is now DEFAULT
   const [fontSize, setFontSize] = useState(18);
   const [lineHeight, setLineHeight] = useState(1.8);
   const [fontFamily, setFontFamily] = useState<FontFamily>('font-serif');
   const [readingTheme, setReadingTheme] = useState<ReadingTheme>('paper');
   
-  // States
   const [readingProgress, setReadingProgress] = useState(0);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
 
-  // Audio System
   const [activeTrack, setActiveTrack] = useState<MusicTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.5);
@@ -226,21 +228,27 @@ export default function ReadPage() {
 
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <header className={cn(
-            "flex items-center justify-between px-4 h-16 border-b sticky top-0 z-30 backdrop-blur-md",
+            "flex items-center justify-between px-2 md:px-4 h-16 border-b sticky top-0 z-30 backdrop-blur-md",
             readingTheme === 'paper' ? "bg-white/40 border-black/10" : "bg-background/80"
         )}>
-          <Link href={`/books/${book.id}`}><Button variant="ghost" size="icon" className="rounded-full"><ArrowLeft className="h-5 w-5" /></Button></Link>
+          <Link href={`/books/${book.id}`} className="shrink-0">
+            <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 md:h-10 md:w-10">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
           
-          <div className="flex flex-col items-center flex-1 mx-4">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40 truncate w-full text-center">Reading: {book.title}</h2>
+          <div className="flex flex-col items-center flex-1 min-w-0 mx-1 md:mx-4">
+              <h2 className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-40 truncate w-full text-center">
+                Reading: {book.title}
+              </h2>
               {isScreenplay && (
-                  <div className="flex items-center gap-1.5 text-[8px] font-bold text-primary uppercase">
-                      <Clapperboard className="h-2.5 w-2.5" /> INDUSTRIAL SCRIPT MODE
+                  <div className="flex items-center gap-1.5 text-[7px] md:text-[8px] font-bold text-primary uppercase whitespace-nowrap">
+                      <Clapperboard className="h-2 w-2 md:h-2.5 md:w-2.5" /> INDUSTRIAL SCRIPT MODE
                   </div>
               )}
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
             <AnimatePresence>
                 {activeTrack && (
                     <motion.button 
@@ -257,12 +265,12 @@ export default function ReadPage() {
                           }
                           setIsPlaying(!isPlaying);
                       }} 
-                      className="h-10 w-10 flex items-center justify-center relative"
+                      className="h-9 w-9 md:h-10 md:w-10 flex items-center justify-center relative"
                     >
                         <motion.div 
                           animate={{ rotate: isPlaying ? 360 : 0 }} 
                           transition={{ duration: 4, repeat: Infinity, ease: "linear" }} 
-                          className="h-8 w-8 rounded-full bg-zinc-900 border border-white/20 overflow-hidden shadow-lg"
+                          className="h-7 w-7 md:h-8 md:w-8 rounded-full bg-zinc-900 border border-white/20 overflow-hidden shadow-lg"
                         >
                             <img src={activeTrack.image} className="w-full h-full object-cover" alt="" />
                         </motion.div>
@@ -271,7 +279,11 @@ export default function ReadPage() {
             </AnimatePresence>
 
             <Popover>
-              <PopoverTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><Headphones className={cn("h-5 w-5", isPlaying && "text-primary animate-pulse")} /></Button></PopoverTrigger>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 md:h-10 md:w-10">
+                  <Headphones className={cn("h-4.5 w-4.5 md:h-5 md:w-5", isPlaying && "text-primary animate-pulse")} />
+                </Button>
+              </PopoverTrigger>
               <PopoverContent className="w-80 p-6 rounded-[2rem] border-none shadow-2xl" align="end">
                 <div className="space-y-6">
                     <div className="space-y-4">
@@ -327,30 +339,96 @@ export default function ReadPage() {
               </PopoverContent>
             </Popover>
 
-            <Sheet>
-                <SheetTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><List className="h-5 w-5" /></Button></SheetTrigger>
-                <SheetContent side="bottom" className="rounded-t-[2.5rem] h-[60vh] z-[300]">
-                    <div className="mx-auto w-12 h-1 bg-muted rounded-full mt-2 mb-6" />
-                    <SheetHeader>
-                        <SheetTitle className="font-headline text-2xl font-black px-4">Daftar Isi</SheetTitle>
-                    </SheetHeader>
-                    <div className="overflow-y-auto h-full pt-4 space-y-1 px-2 pb-20">
-                        {chapters?.map(c => (
-                            <button key={c.id} onClick={()=> {
-                                document.getElementById(`chapter-${c.id}`)?.scrollIntoView({behavior:'smooth'});
-                            }} className="w-full text-left p-4 hover:bg-primary/5 rounded-2xl text-sm font-bold transition-colors">{c.title}</button>
-                        ))}
-                        {isScreenplay && shotList && shotList.length > 0 && (
-                            <button onClick={()=> {
-                                document.getElementById('production-shot-list')?.scrollIntoView({behavior:'smooth'});
-                            }} className="w-full text-left p-4 hover:bg-orange-500/5 text-orange-600 rounded-2xl text-sm font-black uppercase tracking-widest border border-dashed border-orange-500/20 mt-4">PRODUCTION SHOT LIST</button>
-                        )}
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 md:h-10 md:w-10">
+                    <List className="h-4.5 w-4.5 md:h-5 md:w-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="rounded-t-[3rem] h-[80vh] md:h-[70vh] p-0 overflow-hidden z-[300] border-none shadow-[0_-20px_50px_rgba(0,0,0,0.2)]">
+                    <div className="mx-auto w-16 h-1.5 bg-muted rounded-full mt-4 mb-2 shrink-0 opacity-50" />
+                    
+                    <div className="flex flex-col h-full">
+                        <SheetHeader className="px-8 pt-6 pb-6 text-left shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-primary/10 text-primary rounded-2xl shadow-sm ring-1 ring-primary/20">
+                                    <Layers className="h-6 w-6" />
+                                </div>
+                                <div className="space-y-1">
+                                    <SheetTitle className="font-headline text-3xl font-black tracking-tight leading-none">Daftar Isi</SheetTitle>
+                                    <SheetDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
+                                        Navigasi {isScreenplay ? 'Adegan & Scene' : 'Struktur Cerita'}
+                                    </SheetDescription>
+                                </div>
+                            </div>
+                        </SheetHeader>
+
+                        <div className="flex-1 overflow-y-auto px-4 pb-32 no-scrollbar">
+                            <div className="grid gap-3">
+                                {chapters?.map((c, idx) => (
+                                    <button 
+                                        key={c.id} 
+                                        onClick={()=> {
+                                            document.getElementById(`chapter-${c.id}`)?.scrollIntoView({behavior:'smooth'});
+                                            setIsSheetOpen(false);
+                                        }} 
+                                        className="group w-full flex items-center gap-4 p-4 rounded-[1.75rem] transition-all hover:bg-primary/5 active:scale-[0.98] border border-transparent hover:border-primary/10 text-left relative overflow-hidden"
+                                    >
+                                        <div className="h-12 w-12 rounded-2xl bg-muted group-hover:bg-primary group-hover:text-white transition-all duration-300 flex items-center justify-center shrink-0 shadow-sm font-black text-xs">
+                                            {String(idx + 1).padStart(2, '0')}
+                                        </div>
+                                        
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-[8px] font-black uppercase tracking-widest text-primary opacity-60">
+                                                    {isScreenplay ? 'Scene' : 'Bagian'}
+                                                </span>
+                                                <div className="h-1 w-1 rounded-full bg-border" />
+                                                <span className="text-[8px] font-bold text-muted-foreground uppercase">
+                                                    ID: {c.id.substring(0, 4)}
+                                                </span>
+                                            </div>
+                                            <p className="font-bold text-sm md:text-base truncate group-hover:text-primary transition-colors pr-4">
+                                                {c.title}
+                                            </p>
+                                        </div>
+
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground/20 group-hover:text-primary/40 group-hover:translate-x-1 transition-all" />
+                                        
+                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 bg-primary rounded-r-full transition-all group-hover:h-8" />
+                                    </button>
+                                ))}
+
+                                {isScreenplay && shotList && shotList.length > 0 && (
+                                    <button 
+                                        onClick={()=> {
+                                            document.getElementById('production-shot-list')?.scrollIntoView({behavior:'smooth'});
+                                            setIsSheetOpen(false);
+                                        }} 
+                                        className="w-full flex items-center gap-4 p-5 rounded-[2rem] transition-all bg-orange-500/5 hover:bg-orange-500/10 border-2 border-dashed border-orange-500/20 mt-6 active:scale-[0.98] text-left"
+                                    >
+                                        <div className="h-12 w-12 rounded-2xl bg-orange-500 text-white shadow-lg flex items-center justify-center shrink-0">
+                                            <Video className="h-6 w-6" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-orange-600 mb-1">Industrial Document</p>
+                                            <h4 className="font-black text-sm md:text-lg text-orange-600 italic tracking-tighter">PRODUCTION SHOT LIST</h4>
+                                        </div>
+                                        <ArrowLeft className="h-5 w-5 text-orange-500 rotate-180" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </SheetContent>
             </Sheet>
 
             <Popover>
-              <PopoverTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><Settings className="h-5 w-5"/></Button></PopoverTrigger>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 md:h-10 md:w-10">
+                  <Settings className="h-4.5 w-4.5 md:h-5 md:w-5"/>
+                </Button>
+              </PopoverTrigger>
               <PopoverContent className="w-80 p-6 rounded-[2rem] border-none shadow-2xl" align="end">
                 <div className="space-y-8">
                     <div className="grid grid-cols-2 gap-2">
@@ -446,7 +524,6 @@ export default function ReadPage() {
                                                     {blocks.map(block => {
                                                         let displayText = block.text;
                                                         
-                                                        // Accurate (CONT'D) logic for Reader
                                                         if (block.type === 'slugline') {
                                                             lastCharacterInScene = null;
                                                         } else if (block.type === 'character') {
@@ -553,7 +630,6 @@ export default function ReadPage() {
         .prose p { margin-bottom: 1.5em; text-indent: 1.5em; } 
         .prose p:first-of-type { text-indent: 0; }
         
-        /* Professional Screenplay Formatting */
         @media (min-width: 768px) {
             .font-mono article { padding-left: 0; padding-right: 0; }
         }
