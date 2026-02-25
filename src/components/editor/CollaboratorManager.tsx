@@ -1,14 +1,15 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useFirestore, useUser } from '@/firebase';
-import { collection, doc, updateDoc, arrayUnion, arrayRemove, query, where, limit, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
-import type { Book, User } from '@/lib/types';
+import { collection, doc, updateDoc, arrayUnion, arrayRemove, query, where, limit, getDocs, serverTimestamp, setDoc, addDoc } from 'firebase/firestore';
+import type { User, Book } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { UserPlus, Trash2, Search, Loader2, Users, ShieldCheck, Plus } from 'lucide-react';
+import { UserPlus, Trash2, Search, Loader2, Users, ShieldCheck, Plus, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -64,43 +65,59 @@ export function CollaboratorManager({ book }: CollaboratorManagerProps) {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm, firestore, book.authorId, book.collaboratorUids]);
 
-  const handleAddCollaborator = async (user: User) => {
-    if (!firestore || !isOwner) return;
+  const handleInviteCollaborator = async (user: User) => {
+    if (!firestore || !isOwner || !currentUser) return;
     setIsProcessing(user.uid);
     try {
-      const bookRef = doc(firestore, 'books', book.id);
-      const collaboratorData = {
-        uid: user.uid,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        username: user.username
-      };
+      // 1. Check if invitation already exists
+      // Filter by ownerId to satisfy Firestore Security Rules
+      const invitesRef = collection(firestore, 'collaborationInvitations');
+      const q = query(
+        invitesRef, 
+        where('bookId', '==', book.id), 
+        where('collaboratorId', '==', user.uid),
+        where('ownerId', '==', currentUser.uid),
+        where('status', '==', 'pending')
+      );
+      const existing = await getDocs(q);
       
-      await updateDoc(bookRef, {
-        collaboratorUids: arrayUnion(user.uid),
-        collaborators: arrayUnion(collaboratorData)
+      if (!existing.empty) {
+        toast({ title: "Undangan Sudah Ada", description: "Pujangga ini sudah memiliki undangan pending." });
+        return;
+      }
+
+      // 2. Create official invitation
+      await addDoc(invitesRef, {
+        bookId: book.id,
+        bookTitle: book.title,
+        ownerId: currentUser.uid,
+        ownerName: currentUser.displayName,
+        collaboratorId: user.uid,
+        status: 'pending',
+        createdAt: serverTimestamp(),
       });
 
+      // 3. Send Notification
       const notificationRef = doc(collection(firestore, `users/${user.uid}/notifications`));
       await setDoc(notificationRef, {
           type: 'follow', 
-          text: `${currentUser?.displayName} mengundang Anda berkolaborasi pada: "${book.title}"`,
-          link: `/books/${book.id}/edit`,
+          text: `${currentUser.displayName} mengundang Anda berkolaborasi pada karya: "${book.title}"`,
+          link: `/studio`,
           actor: {
-              uid: currentUser?.uid,
-              displayName: currentUser?.displayName,
-              photoURL: currentUser?.photoURL,
+              uid: currentUser.uid,
+              displayName: currentUser.displayName!,
+              photoURL: currentUser.photoURL!,
           },
           read: false,
           createdAt: serverTimestamp(),
       });
 
-      toast({ variant: 'success', title: "Kolaborator Ditambahkan", description: `${user.displayName} sekarang memiliki akses edit.` });
+      toast({ variant: 'success', title: "Undangan Terkirim", description: `Menunggu persetujuan dari ${user.displayName}.` });
       setSearchTerm("");
       setSearchResults([]);
     } catch (e) {
-      console.error("Error adding collaborator:", e);
-      toast({ variant: 'destructive', title: "Gagal Menambahkan", description: "Pastikan koneksi stabil." });
+      console.error("Error inviting collaborator:", e);
+      toast({ variant: 'destructive', title: "Gagal Mengirim Undangan" });
     } finally {
       setIsProcessing(null);
     }
@@ -208,9 +225,9 @@ export function CollaboratorManager({ book }: CollaboratorManagerProps) {
                     <div className="absolute -top-1 -right-1 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000" />
                     <CardHeader className="p-8 pb-4">
                         <CardTitle className="text-xl font-headline font-black flex items-center gap-3">
-                            <UserPlus className="h-6 w-6 text-indigo-400" /> Undang Rekan
+                            <Mail className="h-6 w-6 text-indigo-400" /> Undang Rekan
                         </CardTitle>
-                        <CardDescription className="text-indigo-200/60 font-medium">Cari pujangga Elitera berdasarkan nama.</CardDescription>
+                        <CardDescription className="text-indigo-200/60 font-medium">Kirim undangan kolaborasi resmi.</CardDescription>
                     </CardHeader>
                     <CardContent className="p-8 pt-0 space-y-6">
                         <div className="relative">
@@ -246,10 +263,10 @@ export function CollaboratorManager({ book }: CollaboratorManagerProps) {
                                         <Button 
                                             size="sm" 
                                             className="h-8 px-4 rounded-xl font-black text-[9px] uppercase tracking-widest bg-white text-indigo-950 hover:bg-indigo-50 shadow-lg active:scale-95" 
-                                            onClick={() => handleAddCollaborator(user)}
+                                            onClick={() => handleInviteCollaborator(user)}
                                             disabled={!!isProcessing}
                                         >
-                                            {isProcessing === user.uid ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Plus className="h-3 w-3 mr-1" /> Tambah</>}
+                                            {isProcessing === user.uid ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Plus className="h-3 w-3 mr-1" /> Undang</>}
                                         </Button>
                                     </motion.div>
                                 ))}
