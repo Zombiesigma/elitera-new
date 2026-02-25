@@ -22,7 +22,8 @@ import {
   X,
   Minimize2,
   Sparkles,
-  Zap
+  Zap,
+  SwitchCamera
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -49,7 +50,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
   
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
-  const [status, setStatus] = useState<'connecting' | 'calling' | 'connected'>('connecting');
+  const [status, setStatus] = useState<'connecting' | 'calling' | 'connected' | 'ended'>('connecting');
 
   const pc = useRef<RTCPeerConnection | null>(null);
   const localStream = useRef<MediaStream | null>(null);
@@ -58,7 +59,6 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   
-  // Antrean untuk kandidat ICE yang tiba terlalu dini kawan
   const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
 
   const handleRemoteIceCandidate = (candidateData: RTCIceCandidateInit) => {
@@ -131,8 +131,8 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         console.error("WebRTC Industrial Error:", err);
         toast({ 
           variant: 'destructive', 
-          title: 'Otoritas Media Ditolak', 
-          description: 'Diskusi visual membutuhkan akses kamera dan mikrofon kawan.' 
+          title: 'Akses Media Ditolak', 
+          description: 'Berikan izin kamera & mikrofon untuk kolaborasi visual kawan.' 
         });
         onClose();
       }
@@ -162,7 +162,6 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
       await updateDoc(callDoc, { offer, status: 'calling' });
 
-      // Listen for Answer and Status Updates
       const unsubscribe = onSnapshot(callDoc, (snapshot) => {
         if (!isComponentMounted) return;
         const data = snapshot.data();
@@ -173,11 +172,11 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
           }).catch(console.error);
         }
         if (data?.status === 'ended' || data?.status === 'rejected') {
-            stopCallLocally();
+            setStatus('ended');
+            setTimeout(() => onClose(), 1500);
         }
       });
 
-      // Listen for Callee ICE Candidates
       const unsubscribeICE = onSnapshot(calleeCandidates, (snapshot) => {
         if (!isComponentMounted) return;
         snapshot.docChanges().forEach((change) => {
@@ -210,7 +209,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
       const callData = callSnap.data();
       
       if (!callData || !callData.offer) {
-          toast({ variant: 'destructive', title: 'Sinyal Terputus', description: 'Panggilan tidak lagi tersedia kawan.' });
+          toast({ variant: 'destructive', title: 'Sinyal Terputus' });
           onClose();
           return;
       }
@@ -238,7 +237,10 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
       onSnapshot(callDoc, (sn) => {
           if (!isComponentMounted) return;
           const s = sn.data()?.status;
-          if (s === 'ended' || s === 'rejected') stopCallLocally();
+          if (s === 'ended' || s === 'rejected') {
+              setStatus('ended');
+              setTimeout(() => onClose(), 1500);
+          }
       });
     };
 
@@ -246,24 +248,15 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
     return () => {
       isComponentMounted = false;
-      cleanupMedia();
+      if (localStream.current) {
+          localStream.current.getTracks().forEach(track => track.stop());
+      }
+      if (pc.current) {
+          pc.current.close();
+          pc.current = null;
+      }
     };
   }, [callId, isCaller]);
-
-  const cleanupMedia = () => {
-    if (localStream.current) {
-        localStream.current.getTracks().forEach(track => track.stop());
-    }
-    if (pc.current) {
-        pc.current.close();
-        pc.current = null;
-    }
-  };
-
-  const stopCallLocally = () => {
-    cleanupMedia();
-    onClose();
-  };
 
   const hangUpCall = async () => {
     if (firestore && callId) {
@@ -271,7 +264,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
             await updateDoc(doc(firestore, 'calls', callId), { status: 'ended' });
         } catch (e) {}
     }
-    stopCallLocally();
+    onClose();
   };
 
   const toggleMute = () => {
@@ -307,7 +300,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         />
         
         <AnimatePresence>
-            {status !== 'connected' && (
+            {(status !== 'connected') && (
                 <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -318,17 +311,23 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                         <div className="absolute inset-0 bg-primary/20 blur-[100px] rounded-full scale-150 animate-pulse" />
                         <div className="relative p-1 rounded-full bg-gradient-to-tr from-primary via-accent to-primary animate-[spin_3s_linear_infinite]">
                             <div className="bg-black rounded-full p-8">
-                                <Loader2 className="h-16 w-16 text-primary animate-spin" />
+                                {status === 'ended' ? (
+                                    <PhoneOff className="h-16 w-16 text-rose-500" />
+                                ) : (
+                                    <Loader2 className="h-16 w-16 text-primary animate-spin" />
+                                )}
                             </div>
                         </div>
                     </div>
                     <div className="text-center space-y-3">
                         <h2 className="text-white font-black font-headline text-4xl tracking-tight leading-tight">
-                            {status === 'connecting' ? 'Inisialisasi Jalur...' : 'Memanggil Pujangga...'}
+                            {status === 'connecting' ? 'Inisialisasi...' : 
+                             status === 'calling' ? 'Memanggil Pujangga...' : 
+                             status === 'ended' ? 'Panggilan Berakhir' : 'Menghubungkan...'}
                         </h2>
                         <div className="flex items-center justify-center gap-3">
                             <Zap className="h-3 w-3 text-primary animate-pulse" />
-                            <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.4em]">Elitera Nexus Engine v7.6</p>
+                            <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.4em]">Elitera Nexus System</p>
                         </div>
                     </div>
                 </motion.div>
@@ -338,8 +337,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         <motion.div 
             drag
             dragConstraints={{ left: -300, right: 300, top: -400, bottom: 400 }}
-            whileDrag={{ scale: 1.05 }}
-            className="absolute top-10 right-6 w-32 md:w-56 aspect-[9/16] bg-zinc-900 rounded-[2rem] overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.5)] border-2 border-white/10 z-50 group cursor-move ring-1 ring-white/5"
+            className="absolute top-10 right-6 w-32 md:w-56 aspect-[9/16] bg-zinc-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-2 border-white/10 z-50 group cursor-move ring-1 ring-white/5"
         >
             <video 
                 ref={localVideoRef} 
@@ -354,10 +352,6 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                     <span className="text-[8px] font-black uppercase tracking-widest">Privasi</span>
                 </div>
             )}
-            <div className="absolute top-3 left-3 flex items-center gap-2 p-1.5 rounded-full bg-black/40 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all">
-                <Minimize2 className="h-3 w-3 text-white" />
-                <span className="text-[7px] font-black uppercase text-white pr-2">Geser</span>
-            </div>
         </motion.div>
       </div>
 
@@ -365,14 +359,14 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         <motion.div 
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="flex items-center gap-4 bg-white/[0.03] backdrop-blur-3xl p-5 rounded-[3rem] border border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.4)] ring-1 ring-white/5"
+            className="flex items-center gap-4 bg-white/[0.03] backdrop-blur-3xl p-5 rounded-[3.5rem] border border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.4)] ring-1 ring-white/5"
         >
             <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={toggleMute}
                 className={cn(
-                    "h-16 w-16 rounded-[1.5rem] transition-all duration-500",
+                    "h-16 w-16 rounded-full transition-all duration-500",
                     isMuted ? "bg-rose-500 text-white shadow-xl shadow-rose-500/20" : "text-white hover:bg-white/10"
                 )}
             >
@@ -384,7 +378,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                 size="icon" 
                 onClick={toggleVideo}
                 className={cn(
-                    "h-16 w-16 rounded-[1.5rem] transition-all duration-500",
+                    "h-16 w-16 rounded-full transition-all duration-500",
                     isVideoOff ? "bg-rose-500 text-white shadow-xl shadow-rose-500/20" : "text-white hover:bg-white/10"
                 )}
             >
