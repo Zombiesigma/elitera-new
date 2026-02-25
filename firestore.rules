@@ -31,22 +31,44 @@ service cloud.firestore {
       allow write: if isOwner(userId) || isAdmin();
       
       match /notifications/{notifId} {
-        allow read, update, delete: if isOwner(userId) || isAdmin();
+        allow read, list, update, delete: if isOwner(userId) || isAdmin();
         allow create: if isAuthenticated(); 
       }
 
+      match /aiMessages/{msgId} {
+        allow read, list, write: if isOwner(userId);
+      }
+
+      match /following/{followId} {
+        allow read, list, write: if isOwner(userId);
+      }
+
+      match /favorites/{favId} {
+        allow read, list, write: if isOwner(userId);
+      }
+
       match /{allSubcollections=**} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read, list, write: if isOwner(userId) || isAdmin();
       }
     }
 
+    match /collaborationInvitations/{inviteId} {
+      allow read, list: if isAuthenticated() && (
+        request.auth.uid == resource.data.collaboratorId || 
+        request.auth.uid == resource.data.ownerId
+      );
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.collaboratorId == request.auth.uid);
+      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || resource.data.collaboratorId == request.auth.uid);
+    }
+
     match /chats/{chatId} {
-      allow read, list: if isAuthenticated();
+      allow read, list: if isAuthenticated() && (request.auth.uid in resource.data.participantUids);
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (request.auth.uid in resource.data.participantUids);
       
       match /messages/{messageId} {
-        allow read, write, list: if isAuthenticated();
+        allow read, list, write: if isAuthenticated();
       }
     }
     
@@ -55,9 +77,27 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || (request.auth.uid in resource.data.collaboratorUids) || isAdmin());
       
-      match /{allSub=**} {
-        allow read: if isAuthenticated();
+      match /chapters/{chapterId} {
+        allow read, list: if isAuthenticated();
         allow write: if canEditBook(bookId);
+      }
+
+      match /shotList/{shotId} {
+        allow read, list: if isAuthenticated();
+        allow write: if canEditBook(bookId);
+      }
+
+      match /comments/{commentId} {
+        allow read, list: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+
+        match /likes/{likeId} {
+          allow read, list, write: if isAuthenticated();
+        }
+        match /replies/{replyId} {
+          allow read, list, write: if isAuthenticated();
+        }
       }
     }
 
@@ -66,8 +106,24 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
       
-      match /{allSub=**} {
-        allow read, write: if isAuthenticated();
+      match /comments/{commentId} {
+        allow read, list: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+        
+        match /likes/{likeId} {
+          allow read, list, write: if isAuthenticated();
+        }
+        match /replies/{replyId} {
+          allow read, list, write: if isAuthenticated();
+        }
+      }
+
+      match /likes/{likeId} {
+        allow read, list, write: if isAuthenticated();
+      }
+      match /views/{viewId} {
+        allow read, list, write: if isAuthenticated();
       }
     }
 
@@ -76,8 +132,14 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
       
-      match /{allSub=**} {
-        allow read, write: if isAuthenticated();
+      match /comments/{commentId} {
+        allow read, list, write: if isAuthenticated();
+      }
+      match /likes/{likeId} {
+        allow read, list, write: if isAuthenticated();
+      }
+      match /views/{viewId} {
+        allow read, list, write: if isAuthenticated();
       }
     }
 
@@ -85,6 +147,11 @@ service cloud.firestore {
       allow read, list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated();
       allow update: if isAdmin();
+    }
+
+    match /music/{musicId} {
+      allow read, list: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     match /{allPaths=**} {
