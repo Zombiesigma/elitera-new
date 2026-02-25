@@ -4,56 +4,48 @@
 
 @layer base {
   :root {
-    --background: 210 17% 98%;
-    --foreground: 222 47% 11%;
-    --card: 210 17% 98%;
-    --card-foreground: 222 47% 11%;
-    --popover: 210 17% 98%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 217 89% 61%;
-    --primary-foreground: 210 17% 98%;
-    --secondary: 210 17% 91%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 17% 91%;
-    --muted-foreground: 222 47% 40%;
-    --accent: 231 48% 56%;
-    --accent-foreground: 210 17% 98%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 210 17% 85%;
-    --input: 210 17% 85%;
-    --ring: 217 89% 61%;
-    --radius: 1.25rem;
-    --sidebar-background: 210 17% 95%;
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 217 89% 61%;
-    --sidebar-primary-foreground: 210 17% 98%;
-    --sidebar-accent: 210 17% 88%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 210 17% 80%;
-    --sidebar-ring: 217 89% 61%;
+    --background: 210 20% 98%;
+    --foreground: 224 71% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 20% 98%;
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 221 83% 53%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 221 83% 53%;
+    --accent-foreground: 224 71% 4%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+    --radius: 1.5rem;
   }
  
   .dark {
-    --background: 222 47% 4%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 6%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 6%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 89% 61%;
-    --primary-foreground: 210 17% 98%;
-    --secondary: 222 47% 12%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 222 47% 12%;
-    --muted-foreground: 210 40% 60%;
-    --accent: 231 48% 56%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 222 47% 12%;
-    --input: 222 47% 12%;
-    --ring: 217 89% 70%;
+    --background: 224 71% 4%;
+    --foreground: 210 20% 98%;
+    --card: 224 71% 4%;
+    --card-foreground: 210 20% 98%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 224 71% 4%;
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 215 28% 17%;
+    --accent-foreground: 210 20% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 224 76% 48%;
   }
 }
  
@@ -62,6 +54,8 @@
     @apply border-border;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    user-select: none !important;
+    -webkit-user-select: none !important;
   }
   
   ::-webkit-scrollbar {
@@ -75,27 +69,32 @@
 
   html {
     @apply scroll-smooth;
-    touch-action: manipulation;
   }
   body {
     @apply bg-background text-foreground antialiased min-h-screen overflow-x-hidden;
     font-feature-settings: "rlig" 1, "calt" 1;
-    touch-action: manipulation;
+  }
+
+  input, textarea, [contenteditable="true"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
+  img {
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+    pointer-events: none;
   }
 }
 
 @layer utilities {
-  .no-scrollbar::-webkit-scrollbar {
-    display: none !important;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none !important;
-    scrollbar-width: none !important;
-  }
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
   .glass {
-    @apply bg-background/70 backdrop-blur-xl border border-white/10;
+    @apply bg-white/70 dark:bg-black/70 backdrop-blur-xl border border-white/20 dark:border-white/10;
+  }
+  .text-balance {
+    text-wrap: balance;
   }
 }
