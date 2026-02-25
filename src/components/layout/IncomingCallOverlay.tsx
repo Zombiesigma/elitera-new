@@ -1,162 +1,148 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useUser, useCollection } from '@/firebase';
-import { collection, query, where, doc, updateDoc, writeBatch } from 'firebase/firestore';
-import type { Chat } from '@/lib/types';
+import { collection, query, where, doc, updateDoc, limit, orderBy, onSnapshot, getDoc } from 'firebase/firestore';
+import type { VideoCallSession } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Phone, PhoneOff, Video, Sparkles } from 'lucide-react';
+import { Phone, PhoneOff, Zap, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-/**
- * IncomingCallOverlay handles real-time global notification for incoming video calls.
- * Optimized for exact mobile centering and real-time auto-dismissal.
- * Includes a looping ringtone from the provided GitHub asset.
- */
 export function IncomingCallOverlay() {
   const { user: currentUser } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
-  const [activeCall, setActiveCall] = useState<{ chat: Chat; caller: any } | null>(null);
+  const [activeCall, setActiveCall] = useState<VideoCallSession | null>(null);
+  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
-  const chatsQuery = useMemo(() => (
+  const callsQuery = useMemo(() => (
     (firestore && currentUser)
-      ? query(collection(firestore, 'chats'), where('participantUids', 'array-contains', currentUser.uid))
+      ? query(
+          collection(firestore, 'calls'), 
+          where('receiverId', '==', currentUser.uid),
+          where('status', '==', 'calling'),
+          orderBy('createdAt', 'desc'),
+          limit(1)
+        )
       : null
   ), [firestore, currentUser]);
 
-  const { data: chats } = useCollection<Chat>(chatsQuery);
+  const { data: calls } = useCollection<VideoCallSession>(callsQuery);
 
-  // Ringtone Logic
   useEffect(() => {
-    let audio: HTMLAudioElement | null = null;
-
-    if (activeCall) {
-      // Use the raw URL for direct mp3 access from GitHub
-      audio = new Audio('https://raw.githubusercontent.com/Zombiesigma/elitera-asset/main/freesound_community-phone-ringing-6805.mp3');
-      audio.loop = true;
-      audio.play().catch(err => {
-        // Most browsers block autoplay without a previous user interaction on the page
-        console.warn("Ringtone playback blocked by browser policy. Please click anywhere on the app to enable sound.", err);
-      });
+    if (calls && calls.length > 0) {
+        const call = calls[0];
+        const now = Date.now();
+        const callTime = call.createdAt?.toMillis() || 0;
+        
+        if (now - callTime < 60000) {
+            setActiveCall(call);
+        } else {
+            setActiveCall(null);
+        }
+    } else {
+        setActiveCall(null);
     }
+  }, [calls]);
 
-    return () => {
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-        audio = null;
+  useEffect(() => {
+    if (!activeCall || !firestore) return;
+    const unsubscribe = onSnapshot(doc(firestore, 'calls', activeCall.id), (sn) => {
+        if (!sn.exists()) {
+            setActiveCall(null);
+            return;
+        }
+        const status = sn.data()?.status;
+        if (status === 'ended' || status === 'rejected' || status === 'accepted') {
+            setActiveCall(null);
+        }
+    });
+    return () => unsubscribe();
+  }, [activeCall, firestore]);
+
+  useEffect(() => {
+    if (activeCall) {
+      if (!ringtoneRef.current) {
+        ringtoneRef.current = new Audio('https://raw.githubusercontent.com/Zombiesigma/elitera-asset/main/freesound_community-phone-ringing-6805.mp3');
+        ringtoneRef.current.loop = true;
       }
-    };
+      ringtoneRef.current.play().catch(err => console.log("Audio play deferred:", err));
+    } else {
+      if (ringtoneRef.current) { 
+        ringtoneRef.current.pause(); 
+        ringtoneRef.current.currentTime = 0; 
+      }
+    }
+    return () => ringtoneRef.current?.pause();
   }, [activeCall]);
 
-  useEffect(() => {
-    if (!chats || !currentUser) return;
-
-    const incomingCallChat = chats.find(chat => {
-      const lastMsg = chat.lastMessage;
-      if (!lastMsg) return false;
-
-      const isCall = lastMsg.type === 'video_call';
-      const isFromOther = lastMsg.senderId !== currentUser.uid;
-      const isActive = lastMsg.status === 'active';
-      
-      const now = Date.now();
-      const msgTime = (lastMsg.timestamp as any)?.toMillis() || 0;
-      const isRecent = (now - msgTime) < 120000; // 2 minutes timeout
-
-      return isCall && isFromOther && isActive && isRecent;
-    });
-
-    if (incomingCallChat) {
-      const caller = incomingCallChat.participants.find(p => p.uid !== currentUser.uid);
-      setActiveCall({ chat: incomingCallChat, caller });
-    } else {
+  const handleAnswer = async () => {
+    if (!activeCall || !firestore || !currentUser) return;
+    
+    try {
+      await updateDoc(doc(firestore, 'calls', activeCall.id), { status: 'accepted' });
+      router.push(`/messages?callId=${activeCall.id}`);
       setActiveCall(null);
-    }
-  }, [chats, currentUser]);
-
-  const handleAnswer = () => {
-    if (activeCall) {
-      // Redirect to messages with autoCall param to trigger modal automatically
-      router.push(`/messages?chatId=${activeCall.chat.id}&autoCall=true`);
-      setActiveCall(null);
+    } catch (e) {
+      console.error("Error answering call:", e);
     }
   };
 
   const handleReject = async () => {
-    if (activeCall && firestore && activeCall.chat.lastMessage?.messageId) {
-      try {
-        const batch = writeBatch(firestore);
-        const msgRef = doc(firestore, 'chats', activeCall.chat.id, 'messages', activeCall.chat.lastMessage.messageId);
-        batch.update(msgRef, { status: 'ended' });
-        
-        const chatRef = doc(firestore, 'chats', activeCall.chat.id);
-        batch.update(chatRef, {
-            'lastMessage.status': 'ended',
-            'lastMessage.text': '📞 Video Call Selesai'
-        });
-
-        await batch.commit();
-        setActiveCall(null);
-      } catch (e) {
-        console.error("Failed to reject call", e);
-      }
+    if (activeCall && firestore) {
+      await updateDoc(doc(firestore, 'calls', activeCall.id), { status: 'rejected' });
+      setActiveCall(null);
     }
   };
 
   return (
     <AnimatePresence>
       {activeCall && (
-        <motion.div
-          initial={{ y: -100, opacity: 0, x: '-50%' }}
-          animate={{ y: 0, opacity: 1, x: '-50%' }}
-          exit={{ y: -100, opacity: 0, x: '-50%' }}
-          transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-          className="fixed top-4 left-1/2 z-[500] w-full max-w-[calc(100%-2rem)] md:max-w-md pointer-events-none px-4"
+        <motion.div 
+            initial={{ y: -120, opacity: 0, x: '-50%' }} 
+            animate={{ y: 0, opacity: 1, x: '-50%' }} 
+            exit={{ y: -120, opacity: 0, x: '-50%' }} 
+            className="fixed top-6 left-1/2 z-[600] w-full max-w-[calc(100%-2.5rem)] md:max-w-md px-4 pointer-events-none"
         >
-          <div className="bg-background/95 backdrop-blur-2xl border border-primary/20 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] rounded-[2.5rem] p-4 flex items-center justify-between gap-4 w-full pointer-events-auto ring-1 ring-white/10">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="relative shrink-0">
-                <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping scale-125" />
-                <Avatar className="h-14 w-14 border-2 border-primary/20 shadow-xl relative z-10">
-                  <AvatarImage src={activeCall.caller.photoURL} className="object-cover" />
-                  <AvatarFallback className="bg-primary/5 text-primary font-black">
-                    {activeCall.caller.displayName.charAt(0)}
-                  </AvatarFallback>
+          <div className="bg-background/95 backdrop-blur-2xl border border-primary/20 shadow-[0_20px_60px_rgba(0,0,0,0.3)] rounded-[3rem] p-5 flex items-center justify-between gap-4 w-full ring-1 ring-white/10 pointer-events-auto overflow-hidden relative group">
+            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform">
+                <Zap className="h-20 w-20 text-primary" />
+            </div>
+            
+            <div className="flex items-center gap-4 flex-1 min-w-0 relative z-10">
+              <div className="relative">
+                <Avatar className="h-16 w-16 border-2 border-primary/30 shadow-2xl transition-transform active:scale-95">
+                    <AvatarImage src={activeCall.callerPhotoURL} className="object-cover" />
+                    <AvatarFallback className="bg-primary/10 text-primary font-black text-xl">{activeCall.callerName[0]}</AvatarFallback>
                 </Avatar>
-                <div className="absolute -bottom-1 -right-1 bg-green-500 p-1.5 rounded-full shadow-lg ring-2 ring-background z-20">
-                  <Video className="h-3 w-3 text-white" />
-                </div>
+                <div className="absolute -bottom-1 -right-1 bg-green-500 border-4 border-background h-6 w-6 rounded-full shadow-lg animate-pulse" />
               </div>
-              
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-0.5">Panggilan Masuk</p>
-                <h4 className="font-black text-sm truncate">{activeCall.caller.displayName}</h4>
-                <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5 mt-0.5">
-                  <Sparkles className="h-2.5 w-2.5 text-primary animate-pulse" />
-                  Ingin berdiskusi video
-                </p>
+                <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Panggilan Masuk</p>
+                    <Sparkles className="h-2.5 w-2.5 text-primary animate-bounce" />
+                </div>
+                <h4 className="font-black text-lg truncate tracking-tight">{activeCall.callerName}</h4>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex gap-2.5 relative z-10">
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 size="icon" 
-                className="h-12 w-12 rounded-full border-rose-100 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm"
+                className="h-14 w-14 rounded-[1.5rem] text-rose-500 bg-rose-500/5 border border-rose-100/50 hover:bg-rose-500 hover:text-white transition-all active:scale-90" 
                 onClick={handleReject}
               >
-                <PhoneOff className="h-5 w-5" />
+                <PhoneOff className="h-6 w-6" />
               </Button>
               <Button 
                 size="icon" 
-                className="h-12 w-12 rounded-full bg-primary shadow-xl shadow-primary/20 transition-all animate-bounce active:scale-90"
+                className="h-14 w-14 rounded-[1.5rem] bg-primary animate-bounce shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all active:scale-90" 
                 onClick={handleAnswer}
               >
-                <Phone className="h-5 w-5 text-white" />
+                <Phone className="text-white h-6 w-6" />
               </Button>
             </div>
           </div>
