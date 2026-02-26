@@ -28,10 +28,11 @@ import {
   Bookmark,
   Video,
   Layers,
-  Loader2
+  Loader2,
+  Feather
 } from 'lucide-react';
 import Link from 'next/link';
-import { useFirestore, useDoc, useCollection } from '@/firebase';
+import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
 import { doc, collection, query, orderBy } from 'firebase/firestore';
 import type { Book, Chapter, Music, ScreenplayBlock, Shot, MusicTrack } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -53,6 +54,7 @@ const PAPER_TEXTURE_URL = "https://images.unsplash.com/photo-1586075010923-2dd45
 export default function ReadPage() {
   const params = useParams<{ id: string }>();
   const firestore = useFirestore();
+  const { user: currentUser } = useUser();
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -81,18 +83,18 @@ export default function ReadPage() {
   const { data: book, isLoading: isBookLoading } = useDoc<Book>(bookRef);
 
   const chaptersQuery = useMemo(() => (
-    firestore ? query(collection(firestore, 'books', params.id, 'chapters'), orderBy('order', 'asc')) : null
-  ), [firestore, params.id]);
+    (firestore && currentUser) ? query(collection(firestore, 'books', params.id, 'chapters'), orderBy('order', 'asc')) : null
+  ), [firestore, currentUser, params.id]);
   const { data: chapters } = useCollection<Chapter>(chaptersQuery);
 
   const shotsQuery = useMemo(() => (
-    (firestore && book?.type === 'screenplay') ? query(collection(firestore, 'books', params.id, 'shotList'), orderBy('number', 'asc')) : null
-  ), [firestore, params.id, book?.type]);
+    (firestore && currentUser && book?.type === 'screenplay') ? query(collection(firestore, 'books', params.id, 'shotList'), orderBy('number', 'asc')) : null
+  ), [firestore, currentUser, params.id, book?.type]);
   const { data: shotList } = useCollection<Shot>(shotsQuery);
 
   const musicQuery = useMemo(() => (
-    firestore ? query(collection(firestore, 'music'), orderBy('createdAt', 'desc')) : null
-  ), [firestore]);
+    (firestore && currentUser) ? query(collection(firestore, 'music'), orderBy('createdAt', 'desc')) : null
+  ), [firestore, currentUser]);
   const { data: musicList } = useCollection<Music>(musicQuery);
 
   const filteredInternalMusic = useMemo(() => {
@@ -104,9 +106,6 @@ export default function ReadPage() {
     );
   }, [musicList, musicSearchQuery]);
 
-  /**
-   * Memutar trek audio secara instan dengan mengambil fresh stream URL.
-   */
   const playTrack = async (track: MusicTrack) => {
     if (!audioRef.current || !track.id) return;
     
@@ -176,9 +175,10 @@ export default function ReadPage() {
   };
 
   if (isBookLoading || !isMounted) return <ReadPageSkeleton />;
-  if (!book) notFound();
+  if (!book) return notFound();
 
   const isScreenplay = book.type === 'screenplay';
+  const isPoem = book.type === 'poem';
 
   const paperStyles = readingTheme === 'paper' ? {
     backgroundImage: `url("${PAPER_TEXTURE_URL}")`,
@@ -222,11 +222,10 @@ export default function ReadPage() {
               <h2 className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-40 truncate w-full">
                 Reading: {book.title}
               </h2>
-              {isScreenplay && (
-                  <div className="flex items-center justify-center gap-1.5 text-[7px] md:text-[8px] font-bold text-primary uppercase whitespace-nowrap">
-                      <Clapperboard className="h-2 w-2 md:h-2.5 md:w-2.5" /> INDUSTRIAL SCRIPT MODE
-                  </div>
-              )}
+              <div className="flex items-center justify-center gap-1.5 text-[7px] md:text-[8px] font-bold text-primary uppercase whitespace-nowrap">
+                  {isScreenplay ? <Clapperboard className="h-2 w-2 md:h-2.5 md:w-2.5" /> : isPoem ? <Feather className="h-2 w-2 md:h-2.5 md:w-2.5" /> : <ScrollText className="h-2 w-2 md:h-2.5 md:w-2.5" />}
+                  {isScreenplay ? 'INDUSTRIAL SCRIPT MODE' : isPoem ? 'POETRY MODE' : 'NOVEL MODE'}
+              </div>
           </div>
 
           <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
@@ -348,7 +347,7 @@ export default function ReadPage() {
                                 <div className="space-y-1">
                                     <SheetTitle className="font-headline text-3xl font-black tracking-tight leading-none">Daftar Isi</SheetTitle>
                                     <SheetDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
-                                        Navigasi {isScreenplay ? 'Adegan & Scene' : 'Struktur Cerita'}
+                                        Navigasi {isScreenplay ? 'Adegan & Scene' : isPoem ? 'Bait Puisi' : 'Struktur Cerita'}
                                     </SheetDescription>
                                 </div>
                             </div>
@@ -372,7 +371,7 @@ export default function ReadPage() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className="text-[8px] font-black uppercase tracking-widest text-primary opacity-60">
-                                                    {isScreenplay ? 'Scene' : 'Bagian'}
+                                                    {isScreenplay ? 'Scene' : isPoem ? 'Poem' : 'Bagian'}
                                                 </span>
                                                 <div className="h-1 w-1 rounded-full bg-border" />
                                                 <span className="text-[8px] font-bold text-muted-foreground uppercase">
@@ -492,7 +491,11 @@ export default function ReadPage() {
             </header>
 
             <article 
-              className={cn("transition-all duration-500 mx-auto", isScreenplay ? "font-mono max-w-[8.5in]" : cn(fontFamily, "prose dark:prose-invert max-w-lg"))} 
+              className={cn(
+                "transition-all duration-500 mx-auto", 
+                isScreenplay ? "font-mono max-w-[8.5in]" : cn(fontFamily, "prose dark:prose-invert max-w-lg"),
+                isPoem && "text-center italic"
+              )} 
               style={{ fontSize: `${fontSize}px`, lineHeight: isScreenplay ? '1.2' : lineHeight }}
             >
                 {chapters?.map((chapter) => (
@@ -558,7 +561,7 @@ export default function ReadPage() {
                                 })()}
                             </div>
                         ) : (
-                            <div className="markdown-content">
+                            <div className={cn("markdown-content", isPoem && "text-center italic")}>
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {chapter.content}
                               </ReactMarkdown>
