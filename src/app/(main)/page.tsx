@@ -7,7 +7,7 @@ import type { Book, Story, User as AppUser, Follow } from '@/lib/types';
 import { BookCarousel } from '@/components/BookCarousel';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Sparkles, BookOpen, PenTool, TrendingUp, Search, Star, Flame, Trophy, Crown, Cpu, ArrowRight, ChevronRight } from 'lucide-react';
+import { Sparkles, BookOpen, PenTool, TrendingUp, Search, Star, Flame, Trophy, Crown, Cpu, ArrowRight, ChevronRight, Clapperboard, Feather, Book as BookIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StoriesReel } from '@/components/stories/StoriesReel';
 import { cn } from '@/lib/utils';
@@ -86,6 +86,7 @@ export default function HomePage() {
     .slice(0, 10);
   }, [areAuthors, rawBooks]);
 
+  // CATEGORIZED COLLECTIONS
   const popularBooks = useMemo(() => {
     if (!rawBooks) return null;
     return [...rawBooks]
@@ -100,6 +101,21 @@ export default function HomePage() {
       .filter(b => b.visibility === 'public')
       .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
       .slice(0, 12);
+  }, [rawBooks]);
+
+  const novelBooks = useMemo(() => {
+    if (!rawBooks) return null;
+    return rawBooks.filter(b => b.type === 'book' && b.visibility === 'public').slice(0, 12);
+  }, [rawBooks]);
+
+  const screenplayBooks = useMemo(() => {
+    if (!rawBooks) return null;
+    return rawBooks.filter(b => b.type === 'screenplay' && b.visibility === 'public').slice(0, 12);
+  }, [rawBooks]);
+
+  const poetryBooks = useMemo(() => {
+    if (!rawBooks) return null;
+    return rawBooks.filter(b => b.type === 'poem' && b.visibility === 'public').slice(0, 12);
   }, [rawBooks]);
 
   const { data: allStories, isLoading: areStoriesLoading } = useCollection<Story>(storiesQuery);
@@ -266,6 +282,27 @@ export default function HomePage() {
             </h2>
             <BookCarousel title="" books={newBooks} isLoading={areBooksLoading} />
           </section>
+
+          <section className="space-y-6">
+            <h2 className="text-lg font-headline font-black tracking-tight flex items-center gap-2">
+                <Clapperboard className="h-5 w-5 text-indigo-500" /> Naskah <span className="text-primary italic">Industri</span>
+            </h2>
+            <BookCarousel title="" books={screenplayBooks} isLoading={areBooksLoading} />
+          </section>
+
+          <section className="space-y-6">
+            <h2 className="text-lg font-headline font-black tracking-tight flex items-center gap-2">
+                <Feather className="h-5 w-5 text-rose-500" /> Koleksi <span className="text-primary italic">Puisi</span>
+            </h2>
+            <BookCarousel title="" books={poetryBooks} isLoading={areBooksLoading} />
+          </section>
+
+          <section className="space-y-6">
+            <h2 className="text-lg font-headline font-black tracking-tight flex items-center gap-2">
+                <BookIcon className="h-5 w-5 text-emerald-500" /> Novel & <span className="text-primary italic">Buku</span>
+            </h2>
+            <BookCarousel title="" books={novelBooks} isLoading={areBooksLoading} />
+          </section>
         </div>
 
         {/* Footer CTA */}
@@ -285,7 +322,7 @@ export default function HomePage() {
                         <PenTool className="h-8 w-8 text-primary animate-bounce" />
                     </div>
                     <h2 className="text-2xl font-headline font-black text-white">Jadi Arsitek Narasi.</h2>
-                    <p className="text-white/40 text-xs font-medium italic max-w-[200px] mx-auto">
+                    <p className="text-white/40 text-xs font-medium italic max-w-[220px] mx-auto">
                         "Setiap ide besar bermula dari satu kata. Bagikan duniamu sekarang."
                     </p>
                 </div>
