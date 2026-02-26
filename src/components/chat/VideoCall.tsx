@@ -24,17 +24,21 @@ import {
   Sparkles,
   Zap,
   SwitchCamera,
-  Clock
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
+// Konfigurasi Server STUN Industri yang diperluas untuk koneksi antar jaringan (WAN)
 const servers = {
   iceServers: [
-    {
-      urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
-    },
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -51,7 +55,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
   
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
-  const [status, setStatus] = useState<'connecting' | 'calling' | 'connected' | 'ended'>('connecting');
+  const [status, setStatus] = useState<'connecting' | 'calling' | 'connected' | 'ended' | 'failed'>('connecting');
   const [duration, setDuration] = useState(0);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
 
@@ -73,7 +77,9 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
   const handleRemoteIceCandidate = (candidateData: RTCIceCandidateInit) => {
     if (pc.current?.remoteDescription) {
-      pc.current.addIceCandidate(new RTCIceCandidate(candidateData)).catch(console.warn);
+      pc.current.addIceCandidate(new RTCIceCandidate(candidateData)).catch(err => {
+          console.warn("[ICE Error] Jalur puitis terhambat kawan:", err);
+      });
     } else {
       iceCandidatesQueue.current.push(candidateData);
     }
@@ -95,8 +101,14 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
     const startSession = async () => {
       try {
+        // Menggunakan resolusi ideal untuk menyeimbangkan kualitas dan bandwidth antar jaringan
         const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
+          video: { 
+            facingMode, 
+            width: { ideal: 640 }, 
+            height: { ideal: 480 },
+            frameRate: { max: 24 }
+          }, 
           audio: true 
         });
 
@@ -113,6 +125,18 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
         pc.current = new RTCPeerConnection(servers);
 
+        // Pantau status koneksi untuk diagnosa antar jaringan kawan
+        pc.current.oniceconnectionstatechange = () => {
+            if (!pc.current) return;
+            console.log("[ICE State]", pc.current.iceConnectionState);
+            if (pc.current.iceConnectionState === 'connected' || pc.current.iceConnectionState === 'completed') {
+                setStatus('connected');
+            } else if (pc.current.iceConnectionState === 'failed') {
+                setStatus('failed');
+                toast({ variant: 'destructive', title: 'Koneksi Gagal', description: 'Jaringan terhambat NAT atau Firewall kawan.' });
+            }
+        };
+
         stream.getTracks().forEach((track) => {
           if (pc.current && localStream.current) {
             pc.current.addTrack(track, localStream.current);
@@ -121,7 +145,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
         pc.current.ontrack = (event) => {
           event.streams[0].getTracks().forEach((track) => {
-            if (remoteStream.current) {
+            if (remoteStream.current && !remoteStream.current.getTracks().includes(track)) {
                 remoteStream.current.addTrack(track);
                 setStatus('connected');
             }
@@ -154,7 +178,10 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         }
       };
 
-      const offerDescription = await pc.current.createOffer();
+      const offerDescription = await pc.current.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true
+      });
       await pc.current.setLocalDescription(offerDescription);
 
       await updateDoc(callDoc, { offer: { sdp: offerDescription.sdp, type: offerDescription.type }, status: 'calling' });
@@ -162,8 +189,10 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
       const unsubscribe = onSnapshot(callDoc, (snapshot) => {
         if (!isComponentMounted) return;
         const data = snapshot.data();
-        if (!pc.current?.currentRemoteDescription && data?.answer) {
-          pc.current.setRemoteDescription(new RTCSessionDescription(data.answer)).then(processIceQueue).catch(console.error);
+        if (!pc.current?.remoteDescription && data?.answer) {
+          pc.current.setRemoteDescription(new RTCSessionDescription(data.answer))
+            .then(processIceQueue)
+            .catch(console.error);
         }
         if (data?.status === 'ended' || data?.status === 'rejected') {
             setStatus('ended');
@@ -270,7 +299,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
     if (localStream.current) {
         localStream.current.getTracks().forEach(t => t.stop());
         const newStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: newMode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
+            video: { facingMode: newMode, width: { ideal: 640 }, height: { ideal: 480 } }, 
             audio: !isMuted 
         });
         localStream.current = newStream;
@@ -310,7 +339,9 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                         <div className="absolute inset-0 bg-primary/20 blur-[100px] rounded-full scale-150 animate-pulse" />
                         <div className="relative p-1 rounded-full bg-gradient-to-tr from-primary via-accent to-primary animate-[spin_3s_linear_infinite]">
                             <div className="bg-black rounded-full p-8">
-                                {status === 'ended' ? <PhoneOff className="h-16 w-16 text-rose-500" /> : <Loader2 className="h-16 w-16 text-primary animate-spin" />}
+                                {status === 'ended' ? <PhoneOff className="h-16 w-16 text-rose-500" /> : 
+                                 status === 'failed' ? <AlertCircle className="h-16 w-16 text-rose-500" /> :
+                                 <Loader2 className="h-16 w-16 text-primary animate-spin" />}
                             </div>
                         </div>
                     </div>
@@ -318,8 +349,11 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                         <h2 className="text-white font-black font-headline text-4xl tracking-tight leading-tight uppercase">
                             {status === 'connecting' ? 'Inisialisasi...' : 
                              status === 'calling' ? (isCaller ? 'Dering...' : 'Menghubungkan...') : 
-                             status === 'ended' ? 'Panggilan Berakhir' : 'Negosiasi Jaringan...'}
+                             status === 'ended' ? 'Panggilan Berakhir' : 
+                             status === 'failed' ? 'Kesalahan Jaringan' :
+                             'Negosiasi Jaringan...'}
                         </h2>
+                        {status === 'failed' && <p className="text-white/40 text-sm italic font-medium px-10">WebRTC gagal menembus firewall kawan. Pastikan jaringan kawan stabil.</p>}
                     </div>
                 </motion.div>
             )}
@@ -363,7 +397,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                     isMuted ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20" : "text-white hover:bg-white/10"
                 )}
             >
-                {isMuted ? <MicOff className="h-6 w-6 md:h-7 md:w-7" /> : <Mic className="h-6 w-6 md:h-7 md:w-7" />}
+                {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
             </Button>
             
             <Button 
@@ -375,7 +409,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                     isVideoOff ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20" : "text-white hover:bg-white/10"
                 )}
             >
-                {isVideoOff ? <VideoOff className="h-6 w-6 md:h-7 md:w-7" /> : <Video className="h-6 w-6 md:h-7 md:w-7" />}
+                {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
             </Button>
             
             <Button 
@@ -384,7 +418,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                 onClick={switchCamera} 
                 className="h-14 w-14 md:h-16 md:w-16 rounded-full text-white hover:bg-white/10 transition-all active:scale-90"
             >
-                <SwitchCamera className="h-6 w-6 md:h-7 md:w-7" />
+                <SwitchCamera className="h-6 w-6" />
             </Button>
             
             <div className="w-px h-10 bg-white/10 mx-1 md:mx-2" />
@@ -393,7 +427,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                 onClick={hangUpCall} 
                 className="h-16 w-16 md:h-20 md:w-20 rounded-[2rem] bg-rose-600 hover:bg-rose-700 text-white active:scale-95 transition-all group shadow-2xl shadow-rose-600/30"
             >
-                <PhoneOff className="h-8 w-8 md:h-9 md:w-9 group-hover:rotate-12 transition-transform" />
+                <PhoneOff className="h-8 w-8 group-hover:rotate-12 transition-transform" />
             </Button>
         </motion.div>
       </div>
