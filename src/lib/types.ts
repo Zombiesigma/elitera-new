@@ -52,7 +52,7 @@ export type Book = {
   id: string;
   title: string;
   genre: string;
-  type: 'book' | 'screenplay';
+  type: 'book' | 'screenplay' | 'poem';
   synopsis: string;
   coverUrl: string;
   fileUrl?: string; 
@@ -154,6 +154,7 @@ export type Chat = {
     messageId?: string;
   };
   unreadCounts?: { [key: string]: number };
+  typingStatus?: { [uid: string]: boolean };
 };
 
 export type TextMessage = {
