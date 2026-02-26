@@ -73,11 +73,41 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
       try {
         setStatus('connecting');
         
-        // 1. Ambil ICE Servers Dinamis (Metered.ca)
+        // 1. Ambil ICE Servers Dinamis dari Metered.ca kawan
         const iceServers = await getIceServers();
         if (!isComponentMounted) return;
 
-        // 2. Akses Media
+        // 2. Setup RTCPeerConnection dengan infrastruktur global kawan
+        pc.current = new RTCPeerConnection({
+            iceServers,
+            iceCandidatePoolSize: 10,
+        });
+
+        // Monitor Connection State kawan
+        pc.current.oniceconnectionstatechange = () => {
+            if (!pc.current) return;
+            const state = pc.current.iceConnectionState;
+            console.log("[WebRTC] ICE State:", state);
+            if (state === 'connected' || state === 'completed') {
+                setStatus('connected');
+            } else if (state === 'failed' || state === 'disconnected') {
+                if (state === 'failed') setStatus('failed');
+            }
+        };
+
+        // Handle Remote Tracks kawan
+        remoteStream.current = new MediaStream();
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream.current;
+
+        pc.current.ontrack = (event) => {
+          event.streams[0].getTracks().forEach((track) => {
+            if (remoteStream.current && !remoteStream.current.getTracks().includes(track)) {
+                remoteStream.current.addTrack(track);
+            }
+          });
+        };
+
+        // 3. Akses Media kawan
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
           audio: true 
@@ -89,51 +119,21 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         }
 
         localStream.current = stream;
-        remoteStream.current = new MediaStream();
-
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream.current;
 
-        // 3. Setup RTCPeerConnection
-        pc.current = new RTCPeerConnection({
-            iceServers,
-            iceCandidatePoolSize: 10,
-        });
-
-        // Monitor Connection State
-        pc.current.oniceconnectionstatechange = () => {
-            if (!pc.current) return;
-            const state = pc.current.iceConnectionState;
-            if (state === 'connected' || state === 'completed') {
-                setStatus('connected');
-            } else if (state === 'failed' || state === 'disconnected') {
-                console.warn("[WebRTC] Connection state:", state);
-                if (state === 'failed') setStatus('failed');
-            }
-        };
-
-        // Handle Remote Tracks
-        pc.current.ontrack = (event) => {
-          event.streams[0].getTracks().forEach((track) => {
-            if (remoteStream.current && !remoteStream.current.getTracks().includes(track)) {
-                remoteStream.current.addTrack(track);
-            }
-          });
-        };
-
-        // Add Local Tracks
+        // Add Local Tracks kawan
         stream.getTracks().forEach((track) => {
           if (pc.current && localStream.current) {
             pc.current.addTrack(track, localStream.current);
           }
         });
 
-        // Signaling Logic
+        // Signaling Logic kawan
         const callDoc = doc(firestore, 'calls', callId);
         const callerCandidates = collection(callDoc, 'callerCandidates');
         const calleeCandidates = collection(callDoc, 'calleeCandidates');
 
-        // Handle ICE Candidate Gathering
+        // Handle ICE Candidate Gathering kawan
         pc.current.onicecandidate = (event) => {
           if (event.candidate && isComponentMounted) {
             const targetCol = isCaller ? callerCandidates : calleeCandidates;
@@ -142,7 +142,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         };
 
         if (isCaller) {
-          // CALLER FLOW
+          // CALLER FLOW: Menciptakan Penawaran kawan
           const offerDescription = await pc.current.createOffer();
           await pc.current.setLocalDescription(offerDescription);
 
@@ -151,13 +151,13 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
             status: 'calling'
           });
 
-          // Listen for Answer
+          // Mendengarkan Jawaban kawan
           const unsubscribeCall = onSnapshot(callDoc, (snapshot) => {
             const data = snapshot.data();
             if (!pc.current?.remoteDescription && data?.answer) {
               const answerDescription = new RTCSessionDescription(data.answer);
               pc.current.setRemoteDescription(answerDescription).then(() => {
-                  // Process queued candidates
+                  // Proses antrean kandidat ICE kawan
                   while(iceCandidatesQueue.current.length > 0) {
                       const cand = iceCandidatesQueue.current.shift();
                       if (cand) pc.current?.addIceCandidate(new RTCIceCandidate(cand));
@@ -170,7 +170,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
             }
           });
 
-          // Listen for Callee Candidates
+          // Mendengarkan Kandidat ICE dari Callee kawan
           const unsubscribeCandidates = onSnapshot(calleeCandidates, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
               if (change.type === 'added') {
@@ -186,13 +186,13 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
           return () => { unsubscribeCall(); unsubscribeCandidates(); };
         } else {
-          // CALLEE FLOW
+          // CALLEE FLOW: Menjawab Penawaran kawan
           const unsubscribeCall = onSnapshot(callDoc, async (snapshot) => {
             const data = snapshot.data();
             if (!pc.current?.remoteDescription && data?.offer) {
               await pc.current.setRemoteDescription(new RTCSessionDescription(data.offer));
               
-              // Process queued candidates
+              // Proses antrean kandidat ICE kawan
               while(iceCandidatesQueue.current.length > 0) {
                   const cand = iceCandidatesQueue.current.shift();
                   if (cand) pc.current?.addIceCandidate(new RTCIceCandidate(cand));
@@ -211,7 +211,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
             }
           });
 
-          // Listen for Caller Candidates
+          // Mendengarkan Kandidat ICE dari Caller kawan
           const unsubscribeCandidates = onSnapshot(callerCandidates, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
               if (change.type === 'added') {
@@ -230,7 +230,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
       } catch (err: any) {
         console.error("Industrial Connection Error:", err);
         setStatus('failed');
-        toast({ variant: 'destructive', title: 'Koneksi Gagal' });
+        toast({ variant: 'destructive', title: 'Koneksi Gagal kawan' });
         setTimeout(() => onClose(), 3000);
       }
     };
@@ -329,11 +329,11 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                     </div>
                     <div className="text-center space-y-3">
                         <h2 className="text-white font-black font-headline text-4xl tracking-tight leading-tight uppercase">
-                            {status === 'connecting' ? 'Inisialisasi...' : 
-                             status === 'calling' ? (isCaller ? 'Dering...' : 'Menghubungkan...') : 
+                            {status === 'connecting' ? 'Inisialisasi kawan...' : 
+                             status === 'calling' ? (isCaller ? 'Dering...' : 'Menghubungkan kawan...') : 
                              status === 'ended' ? 'Panggilan Berakhir' : 
                              status === 'failed' ? 'Koneksi Gagal' :
-                             'Negosiasi Jaringan...'}
+                             'Negosiasi Jaringan kawan...'}
                         </h2>
                         {status === 'failed' && <p className="text-white/40 text-sm italic font-medium px-10">WebRTC gagal menembus jaringan kawan. Pastikan internet stabil.</p>}
                     </div>
@@ -355,7 +355,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
               playsInline 
               muted 
               className={cn(
-                "w-full h-full object-cover", 
+                "w-full h-full object-cover transition-transform duration-500", 
                 isVideoOff && "hidden",
                 facingMode === 'user' && "-scale-x-100"
               )} 
