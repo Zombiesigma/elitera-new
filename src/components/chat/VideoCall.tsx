@@ -88,7 +88,6 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
     }
   };
 
-  // 1. Initial Setup Effect
   useEffect(() => {
     if (!firestore || !callId) return;
 
@@ -232,7 +231,6 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
     };
   }, [callId, isCaller]);
 
-  // 2. Timer Effect
   useEffect(() => {
     if (status === 'connected') {
         timerIntervalRef.current = setInterval(() => {
@@ -253,7 +251,6 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
             
             await updateDoc(callRef, { status: 'ended' });
 
-            // Sync status to chat bubble
             if (callData?.chatId && callData?.messageId) {
                 const msgRef = doc(firestore, `chats/${callData.chatId}/messages`, callData.messageId);
                 await updateDoc(msgRef, { 
@@ -279,7 +276,6 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         localStream.current = newStream;
         if (localVideoRef.current) localVideoRef.current.srcObject = newStream;
         
-        // Update Tracks in RTCPeerConnection
         const videoTrack = newStream.getVideoTracks()[0];
         const sender = pc.current?.getSenders().find(s => s.track?.kind === 'video');
         if (sender && videoTrack) sender.replaceTrack(videoTrack);
@@ -319,15 +315,11 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                         </div>
                     </div>
                     <div className="text-center space-y-3">
-                        <h2 className="text-white font-black font-headline text-4xl tracking-tight leading-tight">
+                        <h2 className="text-white font-black font-headline text-4xl tracking-tight leading-tight uppercase">
                             {status === 'connecting' ? 'Inisialisasi...' : 
                              status === 'calling' ? (isCaller ? 'Dering...' : 'Menghubungkan...') : 
                              status === 'ended' ? 'Panggilan Berakhir' : 'Negosiasi Jaringan...'}
                         </h2>
-                        <div className="flex items-center justify-center gap-3">
-                            <Zap className="h-3 w-3 text-primary animate-pulse" />
-                            <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.4em]">Elitera Nexus System v11.0</p>
-                        </div>
                     </div>
                 </motion.div>
             )}
@@ -341,28 +333,69 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         )}
 
         <motion.div drag dragConstraints={{ left: -300, right: 300, top: -400, bottom: 400 }} className="absolute top-10 right-6 w-32 md:w-56 aspect-[9/16] bg-zinc-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-2 border-white/10 z-50 group cursor-move ring-1 ring-white/5">
-            <video ref={localVideoRef} autoPlay playsInline muted className={cn("w-full h-full object-cover", isVideoOff && "hidden")} />
+            <video 
+              ref={localVideoRef} 
+              autoPlay 
+              playsInline 
+              muted 
+              className={cn(
+                "w-full h-full object-cover", 
+                isVideoOff && "hidden",
+                facingMode === 'user' && "-scale-x-100"
+              )} 
+            />
             {isVideoOff && <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-800 text-white/20 gap-2"><VideoOff className="h-8 w-8" /><span className="text-[8px] font-black uppercase tracking-widest">Off</span></div>}
         </motion.div>
       </div>
 
       <div className="absolute bottom-12 left-0 right-0 flex flex-col items-center gap-8 z-[100] px-6">
-        <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex items-center gap-4 bg-white/[0.03] backdrop-blur-3xl p-5 rounded-[3.5rem] border border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.4)] ring-1 ring-white/5">
-            <Button variant="ghost" size="icon" onClick={toggleMute} className={cn("h-16 w-16 rounded-full", isMuted ? "bg-rose-500 text-white" : "text-white hover:bg-white/10")}>
-                {isMuted ? <MicOff className="h-7 w-7" /> : <Mic className="h-7 w-7" />}
+        <motion.div 
+            initial={{ y: 50, opacity: 0 }} 
+            animate={{ y: 0, opacity: 1 }} 
+            className="flex items-center gap-4 bg-zinc-900/80 backdrop-blur-3xl p-4 md:p-6 rounded-[3.5rem] border border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/5"
+        >
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleMute} 
+                className={cn(
+                    "h-14 w-14 md:h-16 md:w-16 rounded-full transition-all active:scale-90", 
+                    isMuted ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20" : "text-white hover:bg-white/10"
+                )}
+            >
+                {isMuted ? <MicOff className="h-6 w-6 md:h-7 md:w-7" /> : <Mic className="h-6 w-6 md:h-7 md:w-7" />}
             </Button>
-            <Button variant="ghost" size="icon" onClick={toggleVideo} className={cn("h-16 w-16 rounded-full", isVideoOff ? "bg-rose-500 text-white" : "text-white hover:bg-white/10")}>
-                {isVideoOff ? <VideoOff className="h-7 w-7" /> : <Video className="h-7 w-7" />}
+            
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleVideo} 
+                className={cn(
+                    "h-14 w-14 md:h-16 md:w-16 rounded-full transition-all active:scale-90", 
+                    isVideoOff ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20" : "text-white hover:bg-white/10"
+                )}
+            >
+                {isVideoOff ? <VideoOff className="h-6 w-6 md:h-7 md:w-7" /> : <Video className="h-6 w-6 md:h-7 md:w-7" />}
             </Button>
-            <Button variant="ghost" size="icon" onClick={switchCamera} className="h-16 w-16 rounded-full text-white hover:bg-white/10">
-                <SwitchCamera className="h-7 w-7" />
+            
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={switchCamera} 
+                className="h-14 w-14 md:h-16 md:w-16 rounded-full text-white hover:bg-white/10 transition-all active:scale-90"
+            >
+                <SwitchCamera className="h-6 w-6 md:h-7 md:w-7" />
             </Button>
-            <div className="w-px h-12 bg-white/10 mx-2" />
-            <Button onClick={hangUpCall} className="h-20 w-20 rounded-[2rem] bg-rose-600 hover:bg-rose-700 text-white active:scale-95 transition-all group">
-                <PhoneOff className="h-9 w-9 group-hover:rotate-12 transition-transform" />
+            
+            <div className="w-px h-10 bg-white/10 mx-1 md:mx-2" />
+            
+            <Button 
+                onClick={hangUpCall} 
+                className="h-16 w-16 md:h-20 md:w-20 rounded-[2rem] bg-rose-600 hover:bg-rose-700 text-white active:scale-95 transition-all group shadow-2xl shadow-rose-600/30"
+            >
+                <PhoneOff className="h-8 w-8 md:h-9 md:w-9 group-hover:rotate-12 transition-transform" />
             </Button>
         </motion.div>
-        <div className="flex items-center gap-3 opacity-20 select-none grayscale"><Sparkles className="h-3 w-3 text-primary" /><p className="text-[8px] font-black uppercase text-white">Industrial WebRTC Sync kawan</p></div>
       </div>
     </div>
   );
