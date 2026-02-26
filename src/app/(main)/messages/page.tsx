@@ -30,16 +30,15 @@ import {
   Video,
   Mic,
   VideoOff,
-  PhoneCall,
   VideoIcon,
   PhoneOff,
   Phone,
-  PhoneForwarded,
   Clock,
-  Check
+  BookOpen,
+  Film
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Chat, ChatMessage, User as AppUser, VideoCallSession } from '@/lib/types';
+import type { Chat, ChatMessage, User as AppUser, VideoCallSession, BookShareMessage, ReelShareMessage } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -288,11 +287,21 @@ export default function MessagesPage() {
 
       if (replyingTo) {
         const replySender = selectedChat?.participants.find(p => p.uid === replyingTo.senderId);
+        let replyText = "";
+        
+        switch (replyingTo.type) {
+            case 'text': replyText = replyingTo.text; break;
+            case 'image': replyText = '📷 Foto'; break;
+            case 'voice_note': replyText = '🎤 Pesan Suara'; break;
+            case 'book_share': replyText = `📖 Karya: ${replyingTo.book.title}`; break;
+            case 'reel_share': replyText = `🎥 Video: ${replyingTo.reel.caption}`; break;
+            case 'video_call': replyText = '🎥 Panggilan'; break;
+            default: replyText = 'Pesan'; break;
+        }
+
         messageData.replyTo = {
           messageId: replyingTo.id,
-          text: replyingTo.type === 'text' ? (replyingTo as any).text : 
-                replyingTo.type === 'image' ? '📷 Foto' : 
-                replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : '🎥 Panggilan',
+          text: replyText,
           senderName: replySender?.displayName || 'Pujangga',
           type: replyingTo.type
         };
@@ -450,6 +459,17 @@ export default function MessagesPage() {
       mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
     }
   };
+
+  const filteredThreads = useMemo(() => {
+    if (!chatThreads) return [];
+    if (!searchTerm.trim()) return [...chatThreads].sort((a, b) => (b.lastMessage?.timestamp?.toMillis() || 0) - (a.lastMessage?.timestamp?.toMillis() || 0));
+    
+    return chatThreads.filter(chat => {
+        const other = chat.participants.find(p => p.uid !== currentUser?.uid);
+        return other?.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+               other?.username.toLowerCase().includes(searchTerm.toLowerCase());
+    }).sort((a, b) => (b.lastMessage?.timestamp?.toMillis() || 0) - (a.lastMessage?.timestamp?.toMillis() || 0));
+  }, [chatThreads, searchTerm, currentUser]);
 
   const handleGoBack = () => {
     router.push('/messages');
@@ -673,13 +693,13 @@ export default function MessagesPage() {
                                             </span>
                                         </div>
                                     )}
-                                    <div className={cn("flex group relative", isMe ? "justify-end pl-12" : "justify-start pr-12")}>
+                                    <div className={cn("flex group items-center gap-2", isMe ? "flex-row-reverse" : "flex-row")}>
                                         <div className={cn(
-                                            "max-w-full shadow-sm transition-all relative overflow-hidden",
+                                            "max-w-[85%] md:max-w-[70%] shadow-sm transition-all relative overflow-hidden",
                                             isMe 
                                                 ? "bg-primary text-white rounded-[1.75rem] rounded-tr-none shadow-primary/10" 
                                                 : "bg-card border border-border/50 text-foreground rounded-[1.75rem] rounded-tl-none",
-                                            msg.type === 'image' ? "p-1.5" : "p-4 md:p-5"
+                                            msg.type === 'image' || msg.type === 'book_share' || msg.type === 'reel_share' ? "p-1.5" : "p-4 md:p-5"
                                         )}>
                                             {msg.replyTo && (
                                               <div 
@@ -709,6 +729,55 @@ export default function MessagesPage() {
                                                 >
                                                     <img src={msg.imageUrl} alt="Media" className="max-w-full h-auto max-h-[300px] object-cover" />
                                                 </div>
+                                            )}
+
+                                            {msg.type === 'book_share' && (
+                                                <Link href={`/books/${msg.book.id}`} className="block group/share">
+                                                    <div className={cn(
+                                                        "flex gap-4 p-3 rounded-2xl border transition-all active:scale-[0.98] w-full min-w-[240px] max-w-[320px]",
+                                                        isMe ? "bg-white/10 border-white/20 hover:bg-white/20" : "bg-muted/10 border-primary/10 hover:bg-muted/20"
+                                                    )}>
+                                                        <div className="relative h-24 w-16 rounded-lg overflow-hidden shadow-lg shrink-0 border border-white/10">
+                                                            <img src={msg.book.coverUrl} className="h-full w-full object-cover transition-transform group-hover/share:scale-110" alt="" />
+                                                        </div>
+                                                        <div className="flex flex-col justify-center min-w-0">
+                                                            <p className={cn("text-[9px] font-black uppercase tracking-widest mb-1", isMe ? "text-white/60" : "text-primary/60")}>Berbagi Mahakarya</p>
+                                                            <h4 className="font-black text-sm truncate leading-tight mb-1 italic">"{msg.book.title}"</h4>
+                                                            <p className="text-[10px] font-bold opacity-60 uppercase truncate">Oleh {msg.book.authorName}</p>
+                                                            <div className={cn("mt-3 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest", isMe ? "text-white" : "text-primary")}>
+                                                                <BookOpen className="h-3 w-3" />
+                                                                <span>Baca Sekarang</span>
+                                                                <ChevronRight className="h-2.5 w-2.5" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </Link>
+                                            )}
+
+                                            {msg.type === 'reel_share' && (
+                                                <Link href={`/reels?id=${msg.reel.id}`} className="block group/share">
+                                                    <div className={cn(
+                                                        "flex gap-4 p-3 rounded-2xl border transition-all active:scale-[0.98] w-full min-w-[240px] max-w-[320px]",
+                                                        isMe ? "bg-white/10 border-white/20 hover:bg-white/20" : "bg-muted/10 border-primary/10 hover:bg-muted/20"
+                                                    )}>
+                                                        <div className="relative h-24 w-16 rounded-lg overflow-hidden shadow-lg shrink-0 border border-white/10 bg-black">
+                                                            <video src={msg.reel.videoUrl} className="h-full w-full object-cover opacity-60" muted />
+                                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                                <Play className="h-5 w-5 text-white/80 fill-white/20" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex flex-col justify-center min-w-0">
+                                                            <p className={cn("text-[9px] font-black uppercase tracking-widest mb-1", isMe ? "text-white/60" : "text-indigo-500/60")}>Berbagi Momen</p>
+                                                            <h4 className="font-bold text-sm truncate leading-tight mb-1 italic">"{msg.reel.caption || 'Video Elitera'}"</h4>
+                                                            <p className="text-[10px] font-bold opacity-60 uppercase truncate">Oleh {msg.reel.authorName}</p>
+                                                            <div className={cn("mt-3 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest", isMe ? "text-white" : "text-indigo-600")}>
+                                                                <Film className="h-3 w-3" />
+                                                                <span>Tonton Video</span>
+                                                                <ChevronRight className="h-2.5 w-2.5" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </Link>
                                             )}
 
                                             {msg.type === 'voice_note' && <VoiceNotePlayer audioUrl={msg.audioUrl} isMe={isMe} />}
@@ -760,10 +829,7 @@ export default function MessagesPage() {
                                         
                                         <button 
                                             onClick={() => setReplyingTo(msg)}
-                                            className={cn(
-                                                "absolute top-1/2 -translate-y-1/2 p-2 rounded-full bg-muted/50 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all hover:bg-primary hover:text-white active:scale-90",
-                                                isMe ? "-left-12" : "-right-12"
-                                            )}
+                                            className="p-2 rounded-full bg-muted/30 text-muted-foreground opacity-40 hover:opacity-100 transition-all hover:bg-primary hover:text-white active:scale-90"
                                         >
                                             <Reply className={cn("h-4 w-4", !isMe && "-scale-x-100")} />
                                         </button>
@@ -795,7 +861,11 @@ export default function MessagesPage() {
                                     Balas @{selectedChat?.participants.find(p => p.uid === replyingTo.senderId)?.displayName || 'Pujangga'}
                                   </p>
                                   <p className="text-xs text-muted-foreground truncate italic">
-                                    {replyingTo.type === 'text' ? (replyingTo as any).text : 'Media Terlampir'}
+                                    {replyingTo.type === 'text' ? (replyingTo as any).text : 
+                                     replyingTo.type === 'image' ? '📷 Foto Terlampir' :
+                                     replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' :
+                                     replyingTo.type === 'book_share' ? `📖 Karya: ${replyingTo.book.title}` :
+                                     replyingTo.type === 'reel_share' ? `🎥 Video: ${replyingTo.reel.caption}` : 'Media Terlampir'}
                                   </p>
                                 </div>
                                 <Button variant="ghost" size="icon" onClick={() => setReplyingTo(null)} className="h-7 w-7 rounded-full text-muted-foreground hover:text-rose-500"><X className="h-4 w-4" /></Button>
