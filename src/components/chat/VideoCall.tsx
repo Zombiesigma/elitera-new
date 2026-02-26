@@ -30,18 +30,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-
-// Konfigurasi Server STUN Industri yang diperluas untuk koneksi antar jaringan (WAN)
-const servers = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-  ],
-  iceCandidatePoolSize: 10,
-};
+import { getIceServers } from '@/app/actions/ice-servers';
 
 interface VideoCallProps {
   callId: string;
@@ -101,7 +90,13 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
     const startSession = async () => {
       try {
-        // Menggunakan resolusi ideal untuk menyeimbangkan kualitas dan bandwidth antar jaringan
+        // Step 1: Ambil ICE Servers Dinamis dari Metered.ca kawan
+        setStatus('connecting');
+        const iceServers = await getIceServers();
+        
+        if (!isComponentMounted) return;
+
+        // Step 2: Akses Kamera & Mikrofon
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { 
             facingMode, 
@@ -123,17 +118,21 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
         if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream.current;
 
-        pc.current = new RTCPeerConnection(servers);
+        // Step 3: Inisialisasi Peer Connection dengan infrastruktur Metered.ca
+        pc.current = new RTCPeerConnection({
+            iceServers,
+            iceCandidatePoolSize: 10,
+        });
 
-        // Pantau status koneksi untuk diagnosa antar jaringan kawan
+        // Monitor status koneksi untuk jangkauan global kawan
         pc.current.oniceconnectionstatechange = () => {
             if (!pc.current) return;
-            console.log("[ICE State]", pc.current.iceConnectionState);
+            console.log("[WebRTC State]", pc.current.iceConnectionState);
             if (pc.current.iceConnectionState === 'connected' || pc.current.iceConnectionState === 'completed') {
                 setStatus('connected');
             } else if (pc.current.iceConnectionState === 'failed') {
                 setStatus('failed');
-                toast({ variant: 'destructive', title: 'Koneksi Gagal', description: 'Jaringan terhambat NAT atau Firewall kawan.' });
+                toast({ variant: 'destructive', title: 'Koneksi Terhambat', description: 'Jalur relai gagal menembus firewall kawan.' });
             }
         };
 
@@ -158,8 +157,8 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
           await setupCallee();
         }
       } catch (err: any) {
-        console.error("WebRTC Industrial Error:", err);
-        toast({ variant: 'destructive', title: 'Media Access Error' });
+        console.error("Industrial Connection Error:", err);
+        toast({ variant: 'destructive', title: 'Akses Gagal' });
         onClose();
       }
     };
