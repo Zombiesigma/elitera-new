@@ -1,4 +1,3 @@
-
 'use server';
 
 import { PDFDocument as PDFLib, StandardFonts, rgb } from 'pdf-lib';
@@ -31,6 +30,7 @@ export async function generateBookPdf(bookId: string): Promise<string> {
   const fontItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
   const fontSerifBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
   const fontSerifRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const fontSerifItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
   const fontMono = await pdfDoc.embedFont(StandardFonts.Courier);
   const fontMonoBold = await pdfDoc.embedFont(StandardFonts.CourierBold);
   const fontMonoItalic = await pdfDoc.embedFont(StandardFonts.CourierOblique);
@@ -94,17 +94,18 @@ export async function generateBookPdf(bookId: string): Promise<string> {
     pageCount++;
 
     const isScreenplay = book.type === 'screenplay';
+    const isPoem = book.type === 'poem';
     const currentMargin = isScreenplay ? LEFT_MARGIN : MARGIN;
 
     page.drawText('ELITERA DIGITAL LITERACY', { x: currentMargin, y: height - 40, size: 7, font: fontBold, color: rgb(0.7, 0.7, 0.7) });
     page.drawText(book.title.toUpperCase(), { x: width - MARGIN - fontRegular.widthOfTextAtSize(book.title.toUpperCase(), 7), y: height - 40, size: 7, font: fontRegular, color: rgb(0.7, 0.7, 0.7) });
 
-    const chapterTitleX = isScreenplay ? (width - fontMonoBold.widthOfTextAtSize(chapter.title.toUpperCase(), 16)) / 2 : MARGIN;
-    page.drawText(isScreenplay ? chapter.title.toUpperCase() : chapter.title, {
+    const chapterTitleX = (isScreenplay || isPoem) ? (width - (isPoem ? fontSerifBold : fontMonoBold).widthOfTextAtSize(chapter.title.toUpperCase(), 16)) / 2 : MARGIN;
+    page.drawText(isScreenplay || isPoem ? chapter.title.toUpperCase() : chapter.title, {
       x: chapterTitleX,
       y: height - 90,
-      size: isScreenplay ? 16 : 22,
-      font: isScreenplay ? fontMonoBold : fontSerifBold,
+      size: (isScreenplay || isPoem) ? 16 : 22,
+      font: isScreenplay ? fontMonoBold : isPoem ? fontSerifBold : fontSerifBold,
       color: rgb(0.1, 0.1, 0.1),
     });
 
@@ -173,6 +174,28 @@ export async function generateBookPdf(bookId: string): Promise<string> {
           }
         }
       } catch (e) {}
+    } else if (isPoem) {
+      const paras = chapter.content.split('\n');
+      for (const para of paras) {
+        if (!para.trim()) {
+            currentY -= 10;
+            continue;
+        }
+        const size = 14;
+        const font = fontSerifItalic;
+        const wrappedLines = wrapText(para, contentWidth, font, size);
+        for (const line of wrappedLines) {
+          if (currentY < 70) {
+            page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+            pageCount++;
+            addFooter(page, pageCount, fontRegular, width);
+            currentY = height - 60;
+          }
+          const lineX = (width - font.widthOfTextAtSize(line, size)) / 2;
+          page.drawText(line, { x: lineX, y: currentY, size, font });
+          currentY -= 18;
+        }
+      }
     } else {
       const paras = chapter.content.split('\n');
       for (const para of paras) {
@@ -198,7 +221,7 @@ export async function generateBookPdf(bookId: string): Promise<string> {
   const safeFileName = `${book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
   
   const safeTitle = book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  const folderPath = book.type === 'screenplay' ? `naskah/${safeTitle}` : 'books';
+  const folderPath = book.type === 'screenplay' ? `naskah/${safeTitle}` : book.type === 'poem' ? `puisi/${safeTitle}` : 'books';
 
   return await uploadPdf(pdfBuffer, safeFileName, folderPath);
 }
