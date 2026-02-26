@@ -14,7 +14,7 @@ export async function getIceServers() {
       `https://${domain}/api/v1/turn/credentials?apiKey=${apiKey}`,
       { 
         method: 'GET',
-        cache: 'no-store' // Selalu ambil yang baru untuk keamanan kawan
+        cache: 'no-store'
       }
     );
 
@@ -22,6 +22,7 @@ export async function getIceServers() {
       throw new Error(`Metered API responded with status: ${response.status}`);
     }
 
+    // Metered returns an array of ice server objects
     const iceServers = await response.json();
     return iceServers;
   } catch (error) {
