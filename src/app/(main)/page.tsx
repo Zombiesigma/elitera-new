@@ -285,7 +285,7 @@ export default function HomePage() {
 
           <section className="space-y-6">
             <h2 className="text-lg font-headline font-black tracking-tight flex items-center gap-2">
-                <Clapperboard className="h-5 w-5 text-indigo-500" /> Naskah <span className="text-primary italic">Industri</span>
+                <Clapperboard className="h-5 w-5 text-indigo-500" /> Naskah <span className="text-primary italic">Film</span>
             </h2>
             <BookCarousel title="" books={screenplayBooks} isLoading={areBooksLoading} />
           </section>
