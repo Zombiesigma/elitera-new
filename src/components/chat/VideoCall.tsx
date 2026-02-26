@@ -64,25 +64,6 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
     return `${mins}:${String(secs).padStart(2, '0')}`;
   };
 
-  const handleRemoteIceCandidate = (candidateData: RTCIceCandidateInit) => {
-    if (pc.current?.remoteDescription) {
-      pc.current.addIceCandidate(new RTCIceCandidate(candidateData)).catch(err => {
-          console.warn("[ICE Error] Jalur puitis terhambat kawan:", err);
-      });
-    } else {
-      iceCandidatesQueue.current.push(candidateData);
-    }
-  };
-
-  const processIceQueue = () => {
-    while (iceCandidatesQueue.current.length > 0 && pc.current?.remoteDescription) {
-      const candidate = iceCandidatesQueue.current.shift();
-      if (candidate) {
-        pc.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(console.warn);
-      }
-    }
-  };
-
   useEffect(() => {
     if (!firestore || !callId) return;
 
@@ -90,20 +71,15 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
     const startSession = async () => {
       try {
-        // Step 1: Ambil ICE Servers Dinamis dari Metered.ca kawan
         setStatus('connecting');
-        const iceServers = await getIceServers();
         
+        // 1. Ambil ICE Servers Dinamis (Metered.ca)
+        const iceServers = await getIceServers();
         if (!isComponentMounted) return;
 
-        // Step 2: Akses Kamera & Mikrofon
+        // 2. Akses Media
         const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            facingMode, 
-            width: { ideal: 640 }, 
-            height: { ideal: 480 },
-            frameRate: { max: 24 }
-          }, 
+          video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
           audio: true 
         });
 
@@ -118,136 +94,145 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
         if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream.current;
 
-        // Step 3: Inisialisasi Peer Connection dengan infrastruktur Metered.ca
+        // 3. Setup RTCPeerConnection
         pc.current = new RTCPeerConnection({
             iceServers,
             iceCandidatePoolSize: 10,
         });
 
-        // Monitor status koneksi untuk jangkauan global kawan
+        // Monitor Connection State
         pc.current.oniceconnectionstatechange = () => {
             if (!pc.current) return;
-            console.log("[WebRTC State]", pc.current.iceConnectionState);
-            if (pc.current.iceConnectionState === 'connected' || pc.current.iceConnectionState === 'completed') {
+            const state = pc.current.iceConnectionState;
+            if (state === 'connected' || state === 'completed') {
                 setStatus('connected');
-            } else if (pc.current.iceConnectionState === 'failed') {
-                setStatus('failed');
-                toast({ variant: 'destructive', title: 'Koneksi Terhambat', description: 'Jalur relai gagal menembus firewall kawan.' });
+            } else if (state === 'failed' || state === 'disconnected') {
+                console.warn("[WebRTC] Connection state:", state);
+                if (state === 'failed') setStatus('failed');
             }
         };
 
+        // Handle Remote Tracks
+        pc.current.ontrack = (event) => {
+          event.streams[0].getTracks().forEach((track) => {
+            if (remoteStream.current && !remoteStream.current.getTracks().includes(track)) {
+                remoteStream.current.addTrack(track);
+            }
+          });
+        };
+
+        // Add Local Tracks
         stream.getTracks().forEach((track) => {
           if (pc.current && localStream.current) {
             pc.current.addTrack(track, localStream.current);
           }
         });
 
-        pc.current.ontrack = (event) => {
-          event.streams[0].getTracks().forEach((track) => {
-            if (remoteStream.current && !remoteStream.current.getTracks().includes(track)) {
-                remoteStream.current.addTrack(track);
-                setStatus('connected');
-            }
-          });
+        // Signaling Logic
+        const callDoc = doc(firestore, 'calls', callId);
+        const callerCandidates = collection(callDoc, 'callerCandidates');
+        const calleeCandidates = collection(callDoc, 'calleeCandidates');
+
+        // Handle ICE Candidate Gathering
+        pc.current.onicecandidate = (event) => {
+          if (event.candidate && isComponentMounted) {
+            const targetCol = isCaller ? callerCandidates : calleeCandidates;
+            addDoc(targetCol, event.candidate.toJSON());
+          }
         };
 
         if (isCaller) {
-          await setupCaller();
+          // CALLER FLOW
+          const offerDescription = await pc.current.createOffer();
+          await pc.current.setLocalDescription(offerDescription);
+
+          await updateDoc(callDoc, { 
+            offer: { sdp: offerDescription.sdp, type: offerDescription.type },
+            status: 'calling'
+          });
+
+          // Listen for Answer
+          const unsubscribeCall = onSnapshot(callDoc, (snapshot) => {
+            const data = snapshot.data();
+            if (!pc.current?.remoteDescription && data?.answer) {
+              const answerDescription = new RTCSessionDescription(data.answer);
+              pc.current.setRemoteDescription(answerDescription).then(() => {
+                  // Process queued candidates
+                  while(iceCandidatesQueue.current.length > 0) {
+                      const cand = iceCandidatesQueue.current.shift();
+                      if (cand) pc.current?.addIceCandidate(new RTCIceCandidate(cand));
+                  }
+              });
+            }
+            if (data?.status === 'ended' || data?.status === 'rejected') {
+                setStatus('ended');
+                setTimeout(() => onClose(), 1500);
+            }
+          });
+
+          // Listen for Callee Candidates
+          const unsubscribeCandidates = onSnapshot(calleeCandidates, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === 'added') {
+                const data = change.doc.data() as RTCIceCandidateInit;
+                if (pc.current?.remoteDescription) {
+                  pc.current.addIceCandidate(new RTCIceCandidate(data));
+                } else {
+                  iceCandidatesQueue.current.push(data);
+                }
+              }
+            });
+          });
+
+          return () => { unsubscribeCall(); unsubscribeCandidates(); };
         } else {
-          await setupCallee();
+          // CALLEE FLOW
+          const unsubscribeCall = onSnapshot(callDoc, async (snapshot) => {
+            const data = snapshot.data();
+            if (!pc.current?.remoteDescription && data?.offer) {
+              await pc.current.setRemoteDescription(new RTCSessionDescription(data.offer));
+              
+              // Process queued candidates
+              while(iceCandidatesQueue.current.length > 0) {
+                  const cand = iceCandidatesQueue.current.shift();
+                  if (cand) pc.current?.addIceCandidate(new RTCIceCandidate(cand));
+              }
+
+              const answerDescription = await pc.current.createAnswer();
+              await pc.current.setLocalDescription(answerDescription);
+              await updateDoc(callDoc, { 
+                answer: { type: answerDescription.type, sdp: answerDescription.sdp },
+                status: 'accepted'
+              });
+            }
+            if (data?.status === 'ended' || data?.status === 'rejected') {
+                setStatus('ended');
+                setTimeout(() => onClose(), 1500);
+            }
+          });
+
+          // Listen for Caller Candidates
+          const unsubscribeCandidates = onSnapshot(callerCandidates, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === 'added') {
+                const data = change.doc.data() as RTCIceCandidateInit;
+                if (pc.current?.remoteDescription) {
+                  pc.current.addIceCandidate(new RTCIceCandidate(data));
+                } else {
+                  iceCandidatesQueue.current.push(data);
+                }
+              }
+            });
+          });
+
+          return () => { unsubscribeCall(); unsubscribeCandidates(); };
         }
       } catch (err: any) {
         console.error("Industrial Connection Error:", err);
-        toast({ variant: 'destructive', title: 'Akses Gagal' });
-        onClose();
+        setStatus('failed');
+        toast({ variant: 'destructive', title: 'Koneksi Gagal' });
+        setTimeout(() => onClose(), 3000);
       }
-    };
-
-    const setupCaller = async () => {
-      if (!pc.current || !firestore) return;
-      setStatus('calling');
-
-      const callDoc = doc(firestore, 'calls', callId);
-      const callerCandidates = collection(callDoc, 'callerCandidates');
-      const calleeCandidates = collection(callDoc, 'calleeCandidates');
-
-      pc.current.onicecandidate = (event) => {
-        if (event.candidate && isComponentMounted) {
-          addDoc(callerCandidates, event.candidate.toJSON());
-        }
-      };
-
-      const offerDescription = await pc.current.createOffer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: true
-      });
-      await pc.current.setLocalDescription(offerDescription);
-
-      await updateDoc(callDoc, { offer: { sdp: offerDescription.sdp, type: offerDescription.type }, status: 'calling' });
-
-      const unsubscribe = onSnapshot(callDoc, (snapshot) => {
-        if (!isComponentMounted) return;
-        const data = snapshot.data();
-        if (!pc.current?.remoteDescription && data?.answer) {
-          pc.current.setRemoteDescription(new RTCSessionDescription(data.answer))
-            .then(processIceQueue)
-            .catch(console.error);
-        }
-        if (data?.status === 'ended' || data?.status === 'rejected') {
-            setStatus('ended');
-            setTimeout(() => onClose(), 1500);
-        }
-      });
-
-      const unsubscribeICE = onSnapshot(calleeCandidates, (snapshot) => {
-        if (!isComponentMounted) return;
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') handleRemoteIceCandidate(change.doc.data() as RTCIceCandidateInit);
-        });
-      });
-
-      return () => { unsubscribe(); unsubscribeICE(); };
-    };
-
-    const setupCallee = async () => {
-      if (!pc.current || !firestore) return;
-      
-      const callDoc = doc(firestore, 'calls', callId);
-      const callerCandidates = collection(callDoc, 'callerCandidates');
-      const calleeCandidates = collection(callDoc, 'calleeCandidates');
-
-      pc.current.onicecandidate = (event) => {
-        if (event.candidate && isComponentMounted) addDoc(calleeCandidates, event.candidate.toJSON());
-      };
-
-      const callSnap = await getDoc(callDoc);
-      const callData = callSnap.data();
-      
-      if (!callData?.offer) { onClose(); return; }
-
-      await pc.current.setRemoteDescription(new RTCSessionDescription(callData.offer));
-      processIceQueue();
-
-      const answerDescription = await pc.current.createAnswer();
-      await pc.current.setLocalDescription(answerDescription);
-
-      await updateDoc(callDoc, { answer: { type: answerDescription.type, sdp: answerDescription.sdp }, status: 'accepted' });
-
-      onSnapshot(callerCandidates, (snapshot) => {
-        if (!isComponentMounted) return;
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') handleRemoteIceCandidate(change.doc.data() as RTCIceCandidateInit);
-        });
-      });
-
-      onSnapshot(callDoc, (sn) => {
-          if (!isComponentMounted) return;
-          const s = sn.data()?.status;
-          if (s === 'ended' || s === 'rejected') {
-              setStatus('ended');
-              setTimeout(() => onClose(), 1500);
-          }
-      });
     };
 
     startSession();
@@ -261,9 +246,7 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
 
   useEffect(() => {
     if (status === 'connected') {
-        timerIntervalRef.current = setInterval(() => {
-            setDuration(prev => prev + 1);
-        }, 1000);
+        timerIntervalRef.current = setInterval(() => setDuration(prev => prev + 1), 1000);
     } else {
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     }
@@ -295,17 +278,17 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
     const newMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newMode);
     
-    if (localStream.current) {
+    if (localStream.current && pc.current) {
         localStream.current.getTracks().forEach(t => t.stop());
         const newStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: newMode, width: { ideal: 640 }, height: { ideal: 480 } }, 
+            video: { facingMode: newMode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
             audio: !isMuted 
         });
         localStream.current = newStream;
         if (localVideoRef.current) localVideoRef.current.srcObject = newStream;
         
         const videoTrack = newStream.getVideoTracks()[0];
-        const sender = pc.current?.getSenders().find(s => s.track?.kind === 'video');
+        const sender = pc.current.getSenders().find(s => s.track?.kind === 'video');
         if (sender && videoTrack) sender.replaceTrack(videoTrack);
     }
   };
@@ -349,10 +332,10 @@ export function VideoCall({ callId, isCaller, onClose }: VideoCallProps) {
                             {status === 'connecting' ? 'Inisialisasi...' : 
                              status === 'calling' ? (isCaller ? 'Dering...' : 'Menghubungkan...') : 
                              status === 'ended' ? 'Panggilan Berakhir' : 
-                             status === 'failed' ? 'Kesalahan Jaringan' :
+                             status === 'failed' ? 'Koneksi Gagal' :
                              'Negosiasi Jaringan...'}
                         </h2>
-                        {status === 'failed' && <p className="text-white/40 text-sm italic font-medium px-10">WebRTC gagal menembus firewall kawan. Pastikan jaringan kawan stabil.</p>}
+                        {status === 'failed' && <p className="text-white/40 text-sm italic font-medium px-10">WebRTC gagal menembus jaringan kawan. Pastikan internet stabil.</p>}
                     </div>
                 </motion.div>
             )}
