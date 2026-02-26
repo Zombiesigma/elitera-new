@@ -333,7 +333,7 @@ export default function MessagesPage() {
         const callDoc = doc(collection(firestore, 'calls'));
         const msgRef = doc(collection(firestore, 'chats', selectedChatId, 'messages'));
         
-        // 1. Create Call Session with meta-data
+        // 1. Create Call Session
         await setDoc(callDoc, {
             callerId: currentUser.uid,
             receiverId: otherParticipant.uid,
@@ -460,10 +460,10 @@ export default function MessagesPage() {
 
   const handleDeleteChat = async () => {
     if (!selectedChatId || !firestore) return;
-    if (confirm("Hapus seluruh sejarah percakapan ini secara permanen kawan?")) {
+    if (confirm("Hapus arsip ini permanen kawan?")) {
         try {
             await updateDoc(doc(firestore, 'chats', selectedChatId), {
-                lastMessage: { text: "Percakapan dibersihkan.", timestamp: serverTimestamp(), senderId: 'system' }
+                lastMessage: { text: "Arsip dibersihkan kawan.", timestamp: serverTimestamp(), senderId: 'system' }
             });
             toast({ title: "Arsip Dibersihkan" });
         } catch (e) {
@@ -846,7 +846,7 @@ export default function MessagesPage() {
                 isKeyboardVisible ? "pb-3" : "pb-[max(1rem,env(safe-area-inset-bottom))]"
             )}>
                 <div className="max-w-4xl mx-auto relative group">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/20 to-primary/30 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
+                    <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/20 to-primary/30 rounded-[2.25rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
                     
                     <div className="relative flex flex-col gap-4">
                         <AnimatePresence>
@@ -987,7 +987,7 @@ export default function MessagesPage() {
                     <div className="flex items-center gap-3">
                         <Zap className="h-3 w-3 text-primary animate-pulse" />
                         <p className="text-[9px] font-black uppercase tracking-[0.5em] text-muted-foreground whitespace-nowrap">
-                            Enkripsi Sastra Aktif kawan • Elitera System v10.0
+                            Enkripsi Sastra Aktif kawan • Elitera System v12.0
                         </p>
                     </div>
                 </div>
