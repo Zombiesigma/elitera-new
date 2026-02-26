@@ -11,8 +11,8 @@ import { Phone, PhoneOff, Zap, Sparkles, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /**
- * IncomingCallOverlay memantau sinyal panggilan masuk di seluruh aplikasi.
- * Dilengkapi dengan nada dering dan popup interaktif kawan.
+ * IncomingCallOverlay memantau sinyal panggilan masuk di seluruh aplikasi kawan.
+ * Dilengkapi dengan nada dering dan popup interaktif untuk standar industri kawan.
  */
 export function IncomingCallOverlay() {
   const { user: currentUser } = useUser();
@@ -109,9 +109,9 @@ export function IncomingCallOverlay() {
             initial={{ y: -150, opacity: 0, x: '-50%' }} 
             animate={{ y: 0, opacity: 1, x: '-50%' }} 
             exit={{ y: -150, opacity: 0, x: '-50%' }} 
-            className="fixed top-6 left-1/2 z-[600] w-full max-w-[calc(100%-2rem)] md:max-w-md px-4 pointer-events-none"
+            className="fixed top-6 left-1/2 z-[600] w-full max-w-[calc(100%-2rem)] md:max-w-md px-4 pointer-events-auto"
         >
-          <div className="bg-background/95 backdrop-blur-2xl border border-primary/20 shadow-[0_30px_100px_rgba(0,0,0,0.4)] rounded-[3rem] p-6 flex items-center justify-between gap-4 w-full ring-1 ring-white/10 pointer-events-auto overflow-hidden relative group">
+          <div className="bg-background/95 backdrop-blur-2xl border border-primary/20 shadow-[0_30px_100px_rgba(0,0,0,0.4)] rounded-[3rem] p-6 flex items-center justify-between gap-4 w-full ring-1 ring-white/10 overflow-hidden relative group">
             <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform">
                 <Video className="h-24 w-24 text-primary" />
             </div>
