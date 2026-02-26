@@ -32,7 +32,10 @@ import {
   VideoOff,
   PhoneCall,
   VideoIcon,
-  PhoneOff
+  PhoneOff,
+  Phone,
+  PhoneForwarded,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Chat, ChatMessage, User as AppUser, VideoCallSession } from '@/lib/types';
@@ -327,33 +330,34 @@ export default function MessagesPage() {
     
     setIsSending(true);
     try {
-        const callsCol = collection(firestore, 'calls');
-        const callDoc = doc(callsCol);
+        const callDoc = doc(collection(firestore, 'calls'));
+        const msgRef = doc(collection(firestore, 'chats', selectedChatId, 'messages'));
         
+        // 1. Create Call Session with meta-data
         await setDoc(callDoc, {
             callerId: currentUser.uid,
             receiverId: otherParticipant.uid,
             callerName: currentUser.displayName || 'Pujangga Elitera',
             callerPhotoURL: currentUser.photoURL || '',
             status: 'calling',
+            chatId: selectedChatId,
+            messageId: msgRef.id,
             createdAt: serverTimestamp()
         });
 
+        // 2. Create Message Log in Chat
         const batch = writeBatch(firestore);
-        const msgRef = doc(collection(firestore, 'chats', selectedChatId, 'messages'));
-        
-        const callLogData = {
-            type: 'video_call' as const,
+        batch.set(msgRef, {
+            type: 'video_call',
             senderId: currentUser.uid,
             callId: callDoc.id,
-            status: 'calling' as const,
+            status: 'calling',
             createdAt: serverTimestamp(),
-        };
+        });
 
-        batch.set(msgRef, callLogData);
         batch.update(doc(firestore, 'chats', selectedChatId), {
             lastMessage: {
-                text: `🎥 Panggilan Video Dimulai`,
+                text: `🎥 Panggilan Video Keluar`,
                 senderId: currentUser.uid,
                 timestamp: serverTimestamp(),
             },
@@ -369,6 +373,26 @@ export default function MessagesPage() {
         toast({ variant: 'destructive', title: "Gagal Menghubungi" });
     } finally {
         setIsSending(false);
+    }
+  };
+
+  const handleAnswerCall = async (callId: string) => {
+    if (!firestore || !callId) return;
+    try {
+        await updateDoc(doc(firestore, 'calls', callId), { status: 'accepted' });
+        setActiveCallId(callId);
+        setIsCaller(false);
+    } catch (e) {
+        toast({ variant: 'destructive', title: "Gagal Menjawab" });
+    }
+  };
+
+  const handleRejectCall = async (callId: string) => {
+    if (!firestore || !callId) return;
+    try {
+        await updateDoc(doc(firestore, 'calls', callId), { status: 'rejected' });
+    } catch (e) {
+        toast({ variant: 'destructive', title: "Gagal Menolak" });
     }
   };
 
@@ -436,7 +460,7 @@ export default function MessagesPage() {
 
   const handleDeleteChat = async () => {
     if (!selectedChatId || !firestore) return;
-    if (confirm("Hapus seluruh sejarah percakapan ini secara permanen?")) {
+    if (confirm("Hapus seluruh sejarah percakapan ini secara permanen kawan?")) {
         try {
             await updateDoc(doc(firestore, 'chats', selectedChatId), {
                 lastMessage: { text: "Percakapan dibersihkan.", timestamp: serverTimestamp(), senderId: 'system' }
@@ -467,7 +491,7 @@ export default function MessagesPage() {
             isCaller={isCaller} 
             onClose={() => {
                 setActiveCallId(null);
-                const newParams = new URLSearchParams(searchParams);
+                const newParams = new URLSearchParams(searchParams.toString());
                 newParams.delete('callId');
                 router.replace(`/messages?${newParams.toString()}`);
             }} 
@@ -518,7 +542,7 @@ export default function MessagesPage() {
                     ) : filteredThreads.length === 0 ? (
                         <div className="py-24 text-center opacity-20 flex flex-col items-center gap-4">
                             <MessageSquare className="h-16 w-16" />
-                            <p className="font-black uppercase tracking-[0.3em] text-[10px]">Hening. Belum ada diskusi.</p>
+                            <p className="font-black uppercase tracking-[0.3em] text-[10px]">Hening. Belum ada diskusi kawan.</p>
                         </div>
                     ) : (
                         filteredThreads.map((chat, idx) => {
@@ -570,7 +594,7 @@ export default function MessagesPage() {
                                                 "text-xs truncate max-w-[200px] md:max-w-[300px]",
                                                 unread > 0 ? "text-foreground font-bold" : "text-muted-foreground font-medium italic opacity-60"
                                             )}>
-                                                {chat.lastMessage?.text || "Mulai diskusi karyamu..."}
+                                                {chat.lastMessage?.text || "Mulai diskusi karyamu kawan..."}
                                             </p>
                                         </div>
                                     </div>
@@ -653,7 +677,7 @@ export default function MessagesPage() {
                     {isLoadingMessages ? (
                         <div className="flex flex-col items-center py-20 gap-4 opacity-40">
                             <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Memuat Arus...</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Memuat Arus kawan...</p>
                         </div>
                     ) : (
                         <div className="space-y-8">
@@ -677,15 +701,28 @@ export default function MessagesPage() {
                                             </div>
                                         )}
                                         <div className={cn("flex group/msg relative", isMe ? "justify-end pl-12" : "justify-start pr-12")}>
-                                            <button 
-                                              onClick={() => setReplyingTo(msg)}
-                                              className={cn(
-                                                "absolute top-1/2 -translate-y-1/2 p-2 rounded-full bg-muted/50 text-muted-foreground opacity-0 group-hover/msg:opacity-100 transition-all hover:bg-primary hover:text-white active:scale-90 shadow-sm",
-                                                isMe ? "-left-12" : "-right-12"
-                                              )}
-                                            >
-                                              <Reply className={cn("h-4 w-4", isMe ? "" : "-scale-x-100")} />
-                                            </button>
+                                            {!isMe && (
+                                                <button 
+                                                  onClick={() => setReplyingTo(msg)}
+                                                  className={cn(
+                                                    "absolute top-1/2 -translate-y-1/2 p-2 rounded-full bg-muted/50 text-muted-foreground opacity-0 group-hover/msg:opacity-100 transition-all hover:bg-primary hover:text-white active:scale-90 shadow-sm",
+                                                    "-right-12"
+                                                  )}
+                                                >
+                                                  <Reply className="h-4 w-4 -scale-x-100" />
+                                                </button>
+                                            )}
+                                            {isMe && (
+                                                <button 
+                                                  onClick={() => setReplyingTo(msg)}
+                                                  className={cn(
+                                                    "absolute top-1/2 -translate-y-1/2 p-2 rounded-full bg-muted/50 text-muted-foreground opacity-0 group-hover/msg:opacity-100 transition-all hover:bg-primary hover:text-white active:scale-90 shadow-sm",
+                                                    "-left-12"
+                                                  )}
+                                                >
+                                                  <Reply className="h-4 w-4" />
+                                                </button>
+                                            )}
 
                                             <div className={cn(
                                                 "max-w-full shadow-sm transition-all relative",
@@ -726,21 +763,52 @@ export default function MessagesPage() {
                                                 )}
 
                                                 {msg.type === 'video_call' && (
-                                                    <div className="flex items-center gap-4 py-1 pr-4">
-                                                        <div className={cn(
-                                                            "h-12 w-12 rounded-full flex items-center justify-center shrink-0 shadow-inner",
-                                                            isMe ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
-                                                        )}>
-                                                            {msg.status === 'missed' ? <PhoneOff className="h-6 w-6" /> : <VideoIcon className="h-6 w-6" />}
+                                                    <div className="flex flex-col gap-4">
+                                                        <div className="flex items-center gap-4 py-1 pr-4">
+                                                            <div className={cn(
+                                                                "h-12 w-12 rounded-full flex items-center justify-center shrink-0 shadow-inner",
+                                                                isMe ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
+                                                            )}>
+                                                                {(msg.status === 'missed' || msg.status === 'rejected') ? <PhoneOff className="h-6 w-6" /> : <VideoIcon className="h-6 w-6" />}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="font-black text-sm uppercase tracking-widest">
+                                                                    {msg.status === 'missed' ? 'Panggilan Tak Terjawab' : 
+                                                                     msg.status === 'rejected' ? 'Panggilan Ditolak' :
+                                                                     msg.status === 'ended' ? 'Panggilan Berakhir' : 'Panggilan Video'}
+                                                                </p>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    {msg.status === 'ended' && msg.duration && (
+                                                                        <div className="flex items-center gap-1 text-[8px] font-black text-emerald-500 uppercase">
+                                                                            <Clock className="h-2 w-2" /> {msg.duration}
+                                                                        </div>
+                                                                    )}
+                                                                    <p className={cn("text-[9px] font-bold uppercase tracking-widest opacity-60", isMe ? "text-white" : "text-primary")}>
+                                                                        {isMe ? 'Panggilan Keluar' : 'Panggilan Masuk'}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <p className="font-black text-sm uppercase tracking-widest">
-                                                                {msg.status === 'missed' ? 'Panggilan Tak Terjawab' : 'Panggilan Video'}
-                                                            </p>
-                                                            <p className={cn("text-[9px] font-bold uppercase tracking-widest opacity-60 mt-0.5", isMe ? "text-white" : "text-primary")}>
-                                                                {isMe ? 'Panggilan Keluar' : 'Panggilan Masuk'}
-                                                            </p>
-                                                        </div>
+                                                        
+                                                        {!isMe && msg.status === 'calling' && (
+                                                            <div className="flex gap-2 pt-2 border-t border-border/10">
+                                                                <Button 
+                                                                    variant="ghost" 
+                                                                    size="sm" 
+                                                                    className="flex-1 rounded-xl h-10 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white font-black uppercase text-[9px] tracking-widest"
+                                                                    onClick={() => handleRejectCall(msg.callId)}
+                                                                >
+                                                                    <PhoneOff className="h-3 w-3 mr-1.5" /> Tolak
+                                                                </Button>
+                                                                <Button 
+                                                                    size="sm" 
+                                                                    className="flex-1 rounded-xl h-10 bg-primary text-white font-black uppercase text-[9px] tracking-widest shadow-lg shadow-primary/20 animate-pulse"
+                                                                    onClick={() => handleAnswerCall(msg.callId)}
+                                                                >
+                                                                    <Phone className="h-3 w-3 mr-1.5" /> Jawab
+                                                                </Button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                                 
@@ -801,7 +869,7 @@ export default function MessagesPage() {
                                     {replyingTo.type === 'text' ? replyingTo.text : 
                                      replyingTo.type === 'image' ? '📷 Foto Terlampir' : 
                                      replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : 
-                                     replyingTo.type === 'video_call' ? '🎥 Log Panggilan' : 'Media'}
+                                     replyingTo.type === 'video_call' ? '🎥 Log Panggilan' : 'Media kawan'}
                                   </p>
                                 </div>
                                 <Button 
@@ -821,7 +889,7 @@ export default function MessagesPage() {
                                         <img src={imagePreview} className="h-full w-full object-cover" alt="Preview" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Visi Sastra Terlampir</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Visi Sastra Terlampir kawan</p>
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={() => { setSelectedImage(null); setImagePreview(null); }} className="text-rose-500 rounded-full h-10 w-10">
                                         <X className="h-5 w-5" />
@@ -833,7 +901,7 @@ export default function MessagesPage() {
                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="p-4 bg-primary/5 rounded-[1.5rem] border border-primary/20 flex items-center gap-4">
                                     <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-white shadow-lg"><Play className="h-4 w-4 fill-current" /></div>
                                     <div className="flex-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Rekaman Tersedia</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Rekaman Tersedia kawan</p>
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={() => setAudioBlob(null)} className="text-rose-500 rounded-full h-10 w-10"><Trash2 className="h-5 w-5" /></Button>
                                 </motion.div>
@@ -919,7 +987,7 @@ export default function MessagesPage() {
                     <div className="flex items-center gap-3">
                         <Zap className="h-3 w-3 text-primary animate-pulse" />
                         <p className="text-[9px] font-black uppercase tracking-[0.5em] text-muted-foreground whitespace-nowrap">
-                            Enkripsi Sastra Aktif • Elitera System v9.0
+                            Enkripsi Sastra Aktif kawan • Elitera System v10.0
                         </p>
                     </div>
                 </div>
@@ -935,7 +1003,7 @@ export default function MessagesPage() {
         >
             <DialogHeader className="sr-only">
                 <DialogTitle>Pratinjau Gambar</DialogTitle>
-                <DialogDescription>Melihat media dalam ukuran penuh</DialogDescription>
+                <DialogDescription>Melihat media dalam ukuran penuh kawan</DialogDescription>
             </DialogHeader>
             
             <div className="absolute top-6 left-0 right-0 px-6 flex items-center justify-between z-[510] pt-[max(1.5rem,env(safe-area-inset-top))]">
