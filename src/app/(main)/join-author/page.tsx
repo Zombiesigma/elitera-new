@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { BookUser, Loader2, Send, Info, Users, BookOpen, Star, Sparkles, ChevronRight, PenTool, CheckCircle2, Clock, Trophy, Crown, Medal, ArrowRight } from "lucide-react";
+import { BookUser, Loader2, Send, Info, Users, BookOpen, Star, Sparkles, ChevronRight, PenTool, CheckCircle2, Clock, Trophy, Crown, Medal, ArrowRight, ShieldCheck } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -67,8 +67,8 @@ export default function JoinAuthorPage() {
     const { data: allUsers, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
 
     const booksQuery = useMemo(() => (
-        (firestore) ? query(collection(firestore, 'books'), where('status', '==', 'published')) : null
-    ), [firestore]);
+        (firestore && user) ? query(collection(firestore, 'books'), where('status', '==', 'published')) : null
+    ), [firestore, user]);
     const { data: allPublishedBooks, isLoading: areBooksLoading } = useCollection<Book>(booksQuery);
     
     const authorsWithStats = useMemo(() => {
@@ -154,7 +154,7 @@ export default function JoinAuthorPage() {
             toast({
                 variant: 'success',
                 title: "Lamaran Terkirim",
-                description: "Terima kasih! Kami akan meninjau lamaran Anda segera.",
+                description: "Teriam kasih! Kami akan meninjau lamaran Anda segera.",
             });
             setApplicationStatus('pending');
         } catch (error) {
