@@ -1,15 +1,19 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirestore, useUser, useCollection } from '@/firebase';
-import { collection, query, where, doc, updateDoc, limit, orderBy, onSnapshot, serverTimestamp, addDoc } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
+import { collection, query, where, doc, updateDoc, onSnapshot, limit } from 'firebase/firestore';
 import type { VideoCallSession } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Phone, PhoneOff, Zap, Sparkles, Loader2, Video } from 'lucide-react';
+import { Phone, PhoneOff, Zap, Sparkles, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+/**
+ * IncomingCallOverlay memantau sinyal panggilan masuk di seluruh aplikasi.
+ * Dilengkapi dengan nada dering dan popup interaktif kawan.
+ */
 export function IncomingCallOverlay() {
   const { user: currentUser } = useUser();
   const firestore = useFirestore();
@@ -17,73 +21,71 @@ export function IncomingCallOverlay() {
   const [activeCall, setActiveCall] = useState<VideoCallSession | null>(null);
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
-  const callsQuery = useMemo(() => (
-    (firestore && currentUser)
-      ? query(
-          collection(firestore, 'calls'), 
-          where('receiverId', '==', currentUser.uid),
-          where('status', '==', 'calling'),
-          orderBy('createdAt', 'desc'),
-          limit(1)
-        )
-      : null
-  ), [firestore, currentUser]);
-
-  const { data: calls } = useCollection<VideoCallSession>(callsQuery);
-
   useEffect(() => {
-    if (calls && calls.length > 0) {
-        const call = calls[0];
-        const now = Date.now();
-        const callTime = call.createdAt?.toMillis() || 0;
+    if (!firestore || !currentUser) return;
+
+    // Monitor panggilan masuk dengan status 'calling' kawan
+    const q = query(
+      collection(firestore, 'calls'),
+      where('receiverId', '==', currentUser.uid),
+      where('status', '==', 'calling'),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const callDoc = snapshot.docs[0];
+        const callData = callDoc.data() as any;
         
-        if (now - callTime < 60000) {
-            setActiveCall(call);
+        // Cek umur panggilan agar tidak memproses panggilan lama kawan
+        const now = Date.now();
+        const callTime = callData.createdAt?.toMillis() || now;
+        
+        if (now - callTime < 45000) { // Masa tunggu 45 detik kawan
+          setActiveCall({ id: callDoc.id, ...callData });
         } else {
-            setActiveCall(null);
+          setActiveCall(null);
         }
-    } else {
+      } else {
         setActiveCall(null);
-    }
-  }, [calls]);
-
-  useEffect(() => {
-    if (!activeCall || !firestore) return;
-    const unsubscribe = onSnapshot(doc(firestore, 'calls', activeCall.id), (sn) => {
-        if (!sn.exists()) {
-            setActiveCall(null);
-            return;
-        }
-        const status = sn.data()?.status;
-        if (status === 'ended' || status === 'rejected' || status === 'accepted') {
-            setActiveCall(null);
-        }
+      }
     });
+
     return () => unsubscribe();
-  }, [activeCall, firestore]);
+  }, [firestore, currentUser]);
 
   useEffect(() => {
     if (activeCall) {
       if (!ringtoneRef.current) {
+        // Nada dering puitis untuk para pujangga kawan
         ringtoneRef.current = new Audio('https://raw.githubusercontent.com/Zombiesigma/elitera-asset/main/freesound_community-phone-ringing-6805.mp3');
         ringtoneRef.current.loop = true;
       }
-      ringtoneRef.current.play().catch(err => console.log("Audio play deferred:", err));
+      
+      const playPromise = ringtoneRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          console.log("Nada dering ditunda kawan, menunggu interaksi pengguna.");
+        });
+      }
     } else {
-      if (ringtoneRef.current) { 
-        ringtoneRef.current.pause(); 
-        ringtoneRef.current.currentTime = 0; 
+      if (ringtoneRef.current) {
+        ringtoneRef.current.pause();
+        ringtoneRef.current.currentTime = 0;
       }
     }
-    return () => ringtoneRef.current?.pause();
+    
+    return () => {
+      if (ringtoneRef.current) ringtoneRef.current.pause();
+    };
   }, [activeCall]);
 
   const handleAnswer = async () => {
-    if (!activeCall || !firestore || !currentUser) return;
-    
+    if (!activeCall || !firestore) return;
     try {
       await updateDoc(doc(firestore, 'calls', activeCall.id), { status: 'accepted' });
-      router.push(`/messages?callId=${activeCall.id}&chatId=${activeCall.id}`); 
+      // Terbang ke ruang obrolan untuk memulai WebRTC kawan
+      router.push(`/messages?chatId=${activeCall.chatId}&callId=${activeCall.id}`);
       setActiveCall(null);
     } catch (e) {
       console.error("Gagal menjawab kawan:", e);
@@ -91,9 +93,12 @@ export function IncomingCallOverlay() {
   };
 
   const handleReject = async () => {
-    if (activeCall && firestore) {
+    if (!activeCall || !firestore) return;
+    try {
       await updateDoc(doc(firestore, 'calls', activeCall.id), { status: 'rejected' });
       setActiveCall(null);
+    } catch (e) {
+      console.error("Gagal menolak kawan:", e);
     }
   };
 
@@ -121,7 +126,7 @@ export function IncomingCallOverlay() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Panggilan Video</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Inspirasi Visual kawan</p>
                     <Sparkles className="h-2.5 w-2.5 text-primary animate-bounce" />
                 </div>
                 <h4 className="font-black text-lg truncate tracking-tight">{activeCall.callerName}</h4>
