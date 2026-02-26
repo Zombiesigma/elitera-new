@@ -1,56 +1,56 @@
 'use server';
 /**
- * @fileOverview Alur AI khusus untuk membantu penulisan naskah film profesional.
+ * @fileOverview Alur AI khusus untuk membantu penulisan puisi dan sajak indah.
  *
- * - screenplayHelper - Fungsi utama untuk membantu penulis naskah.
+ * - poetryHelper - Fungsi utama untuk membantu penyair dalam memperkuat rima dan metafora.
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
-const ScreenplayHelperInputSchema = z.object({
-  context: z.string().describe('Teks naskah yang sedang dikerjakan.'),
-  task: z.enum(['summarize', 'naturalize_dialogue', 'suggest_plot']).describe('Tugas yang diinginkan.'),
+const PoetryHelperInputSchema = z.object({
+  context: z.string().describe('Bait puisi yang sedang dikerjakan.'),
+  task: z.enum(['rhyme_polish', 'deepen_metaphor', 'emotional_boost']).describe('Tugas puitis yang diinginkan.'),
 });
-export type ScreenplayHelperInput = z.infer<typeof ScreenplayHelperInputSchema>;
+export type PoetryHelperInput = z.infer<typeof PoetryHelperInputSchema>;
 
-const ScreenplayHelperOutputSchema = z.object({
-  result: z.string().describe('Hasil dari tugas AI.'),
+const PoetryHelperOutputSchema = z.object({
+  result: z.string().describe('Hasil dari saran puitis AI.'),
 });
-export type ScreenplayHelperOutput = z.infer<typeof ScreenplayHelperOutputSchema>;
+export type PoetryHelperOutput = z.infer<typeof PoetryHelperOutputSchema>;
 
-export async function screenplayHelper(
-  input: ScreenplayHelperInput
-): Promise<ScreenplayHelperOutput> {
-  return screenplayHelperFlow(input);
+export async function poetryHelper(
+  input: PoetryHelperInput
+): Promise<PoetryHelperOutput> {
+  return poetryHelperFlow(input);
 }
 
 const prompt = ai.definePrompt({
-  name: 'screenplayHelperPrompt',
-  input: {schema: ScreenplayHelperInputSchema},
-  output: {schema: ScreenplayHelperOutputSchema},
-  prompt: `Anda adalah asisten penulis naskah film profesional (Script Doctor).
+  name: 'poetryHelperPrompt',
+  input: {schema: PoetryHelperInputSchema},
+  output: {schema: PoetryHelperOutputSchema},
+  prompt: `Anda adalah Maestro Puisi Elitera yang sangat ahli dalam estetika sajak Indonesia.
   
 Tugas Anda adalah: {{{task}}}
 
-Berdasarkan naskah berikut:
+Berdasarkan bait puisi berikut:
 """
 {{{context}}}
 """
 
 PANDUAN TUGAS:
-1. summarize: Ringkas adegan ini menjadi satu logline yang padat dan menarik.
-2. naturalize_dialogue: Evaluasi dialognya. Jika kaku, berikan saran revisi agar terdengar lebih manusiawi dan subtekstual.
-3. suggest_plot: Berikan 3 poin kemungkinan konflik atau aksi yang bisa terjadi selanjutnya dalam adegan ini.
+1. rhyme_polish: Periksa rima dan aliterasi. Berikan saran kata yang memiliki rima akhir yang lebih indah namun tetap bermakna dalam.
+2. deepen_metaphor: Cari kata-kata yang terlalu harfiah dan ubah menjadi metafora atau personifikasi yang kuat dan puitis.
+3. emotional_boost: Perkuat suasana emosional (sedih, gembira, rindu, marah) dengan pemilihan diksi yang lebih menggugah perasaan.
 
-Berikan jawaban dalam Bahasa Indonesia yang profesional namun kreatif.`,
+Berikan jawaban dalam Bahasa Indonesia yang sangat indah, tenang, dan inspiratif. Tunjukkan jiwa penyair sejati.`,
 });
 
-const screenplayHelperFlow = ai.defineFlow(
+const poetryHelperFlow = ai.defineFlow(
   {
-    name: 'screenplayHelperFlow',
-    inputSchema: ScreenplayHelperInputSchema,
-    outputSchema: ScreenplayHelperOutputSchema,
+    name: 'poetryHelperFlow',
+    inputSchema: PoetryHelperInputSchema,
+    outputSchema: PoetryHelperOutputSchema,
   },
   async input => {
     const {output} = await prompt(input);
