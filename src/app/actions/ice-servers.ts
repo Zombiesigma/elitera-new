@@ -2,11 +2,11 @@
 
 /**
  * @fileOverview Server Action untuk mengambil kredensial ICE (STUN/TURN) secara dinamis dari Metered.ca.
- * Ini memastikan koneksi Video Call tetap stabil melintasi berbagai jenis jaringan internet kawan.
+ * Diperbarui dengan API Key dan Domain Elitera yang baru untuk koneksi global kawan.
  */
 
 export async function getIceServers() {
-  const apiKey = '0jHVKtceDf02sR75m-yP3DzRVw8xLYWRtZ42dMWnQyNeOrRj';
+  const apiKey = 'e36a59ebc0069ac41fa01f7136d4fb5d0d2f';
   const domain = 'elitera.metered.live';
 
   try {
@@ -24,6 +24,7 @@ export async function getIceServers() {
 
     // Metered returns an array of ice server objects
     const iceServers = await response.json();
+    console.log('[ICE] Servers fetched successfully kawan.');
     return iceServers;
   } catch (error) {
     console.error('[ICE Server Fetch Error] Gagal menjangkau Metered kawan:', error);
