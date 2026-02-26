@@ -27,18 +27,30 @@ import {
   Heart,
   MessageSquare,
   AlertCircle,
-  Briefcase
+  Briefcase,
+  AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function StudioPage() {
   const { user: currentUser } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const { data: userProfile } = useDoc<AppUser>(
     (firestore && currentUser) ? doc(firestore, 'users', currentUser.uid) : null
@@ -157,6 +169,20 @@ export default function StudioPage() {
     }
   };
 
+  const handleDeleteBook = async (bookId: string) => {
+    if (!firestore) return;
+    setProcessingId(bookId);
+    try {
+      await deleteDoc(doc(firestore, 'books', bookId));
+      toast({ variant: 'success', title: "Karya Dilenyapkan", description: "Jejak narasi tersebut telah dihapus selamanya kawan." });
+    } catch (e) {
+      toast({ variant: 'destructive', title: "Gagal Melenyapkan" });
+    } finally {
+      setProcessingId(null);
+      setDeleteConfirmId(null);
+    }
+  };
+
   if (booksError || reelsError) {
       return (
           <div className="flex flex-col items-center justify-center py-20 gap-4 text-center px-6">
@@ -245,13 +271,22 @@ export default function StudioPage() {
                                     <CardContent className="p-6 space-y-4">
                                         <div>
                                             <h3 className="font-headline text-lg font-black truncate italic">"{book.title}"</h3>
-                                            <p className="text-[10px] font-black uppercase text-primary tracking-widest mt-1">{book.genre} • {book.type === 'screenplay' ? 'Naskah Film' : 'Buku'}</p>
+                                            <p className="text-[10px] font-black uppercase text-primary tracking-widest mt-1">{book.genre} • {book.type === 'screenplay' ? 'Naskah Film' : book.type === 'poem' ? 'Puisi' : 'Buku'}</p>
                                         </div>
-                                        <Button className="w-full rounded-2xl h-12 font-black uppercase text-[10px] tracking-[0.2em] shadow-lg shadow-primary/20 transition-all active:scale-95" asChild>
-                                            <Link href={`/books/${book.id}/edit`}>
-                                                <Edit className="mr-2 h-3.5 w-3.5" /> Buka Editor
-                                            </Link>
-                                        </Button>
+                                        <div className="space-y-2">
+                                            <Button className="w-full rounded-2xl h-12 font-black uppercase text-[10px] tracking-[0.2em] shadow-lg shadow-primary/20 transition-all active:scale-95" asChild>
+                                                <Link href={`/books/${book.id}/edit`}>
+                                                    <Edit className="mr-2 h-3.5 w-3.5" /> Buka Editor
+                                                </Link>
+                                            </Button>
+                                            <Button 
+                                                variant="ghost" 
+                                                className="w-full rounded-2xl h-12 font-black uppercase text-[10px] tracking-[0.2em] text-rose-500 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                                                onClick={() => setDeleteConfirmId(book.id)}
+                                            >
+                                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Hapus Karya
+                                            </Button>
+                                        </div>
                                     </CardContent>
                                 </Card>
                             </motion.div>
@@ -300,7 +335,7 @@ export default function StudioPage() {
                                     <CardContent className="p-6 space-y-4">
                                         <div>
                                             <h3 className="font-headline text-lg font-black truncate italic">"{book.title}"</h3>
-                                            <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mt-1">Tim Kolaborasi • {book.type === 'screenplay' ? 'Naskah' : 'Buku'}</p>
+                                            <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mt-1">Tim Kolaborasi • {book.type === 'screenplay' ? 'Naskah' : book.type === 'poem' ? 'Puisi' : 'Buku'}</p>
                                         </div>
                                         <Button className="w-full rounded-2xl h-12 font-black uppercase text-[10px] tracking-[0.2em] shadow-lg shadow-indigo-500/20 bg-indigo-600 hover:bg-indigo-700 transition-all active:scale-95" asChild>
                                             <Link href={`/books/${book.id}/edit`}>
@@ -415,6 +450,29 @@ export default function StudioPage() {
             </TabsContent>
         </AnimatePresence>
       </Tabs>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
+            <AlertDialogHeader>
+                <div className="mx-auto bg-rose-50 p-4 rounded-2xl w-fit mb-4"><AlertTriangle className="h-8 w-8 text-rose-500" /></div>
+                <AlertDialogTitle className="font-headline text-2xl font-black text-center">Lenyapkan Karya?</AlertDialogTitle>
+                <AlertDialogDescription className="text-center font-medium leading-relaxed">
+                    Tindakan ini permanen kawan. Seluruh bab, apresiasi, dan sejarah narasi dari karya ini akan hilang selamanya dari semesta Elitera.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="mt-8 flex flex-col sm:flex-row gap-3">
+                <AlertDialogCancel className="rounded-full h-12 flex-1 border-2 font-bold">Batal</AlertDialogCancel>
+                <AlertDialogAction 
+                    onClick={() => deleteConfirmId && handleDeleteBook(deleteConfirmId)} 
+                    className="rounded-full h-12 flex-1 bg-rose-500 font-black shadow-lg shadow-rose-500/20"
+                    disabled={!!processingId}
+                >
+                    {processingId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ya, Lenyapkan"}
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
