@@ -145,6 +145,9 @@ export type Chat = {
   id: string;
   participants: ChatParticipant[];
   participantUids: string[];
+  isGroup?: boolean;
+  groupName?: string;
+  groupAvatarUrl?: string;
   lastMessage?: {
     text: string;
     timestamp: Timestamp;
@@ -212,6 +215,7 @@ export type ChatMessage = (
   senderId: string;
   createdAt: Timestamp;
   replyTo?: {
+    messageId: string;
     text: string;
     senderName: string;
     type: string;
