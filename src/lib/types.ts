@@ -178,7 +178,8 @@ export type VideoCallMessage = {
     id: string;
     type: 'video_call';
     callId: string;
-    status: 'calling' | 'missed' | 'ended' | 'accepted';
+    status: 'calling' | 'missed' | 'ended' | 'accepted' | 'rejected';
+    duration?: string;
 };
 
 export type BookShareMessage = {
@@ -343,5 +344,7 @@ export interface VideoCallSession {
   status: 'calling' | 'accepted' | 'rejected' | 'ended';
   offer?: RTCSessionDescriptionInit;
   answer?: RTCSessionDescriptionInit;
+  chatId: string; // New field
+  messageId: string; // New field
   createdAt: Timestamp;
 }
