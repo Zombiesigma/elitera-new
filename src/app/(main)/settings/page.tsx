@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, User as UserIcon, Palette, Bell, Shield, Check, Monitor, Moon, Sun, Sparkles, ChevronRight } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from '@/components/ui/skeleton';
-import { uploadFile } from '@/lib/uploader';
+import { uploadProfilePhoto } from '@/lib/uploader';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -122,7 +122,7 @@ export default function SettingsPage() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !userProfile) return;
 
     if (file.size > 2 * 1024 * 1024) {
       toast({
@@ -135,7 +135,8 @@ export default function SettingsPage() {
 
     setIsUploading(true);
     try {
-      const url = await uploadFile(file);
+      // Simpan dengan struktur: foto profile/{nama user}/{filename} kawan
+      const url = await uploadProfilePhoto(file, userProfile.displayName);
       profileForm.setValue('photoURL', url, { shouldDirty: true });
       toast({
         variant: 'success',
@@ -160,7 +161,6 @@ export default function SettingsPage() {
     try {
       const normalizedUsername = values.username.toLowerCase();
       
-      // 1. Validasi Username Unik (Jika diubah)
       if (normalizedUsername !== userProfile.username) {
         const usernameQuery = query(
           collection(firestore, 'users'), 
@@ -179,16 +179,13 @@ export default function SettingsPage() {
         }
       }
 
-      // 2. Perbarui profil di Firebase Auth
       await updateProfile(currentUser, {
         displayName: values.displayName,
         photoURL: values.photoURL || userProfile.photoURL,
       });
 
-      // 3. Batch Update untuk sinkronisasi identitas global
       const batch = writeBatch(firestore);
 
-      // Profil Utama
       batch.update(userProfileRef, {
         username: normalizedUsername,
         displayName: values.displayName,
@@ -196,7 +193,6 @@ export default function SettingsPage() {
         photoURL: values.photoURL || userProfile.photoURL,
       });
 
-      // Sinkronisasi ke Buku
       const booksQuery = query(collection(firestore, 'books'), where('authorId', '==', currentUser.uid));
       const booksSnap = await getDocs(booksQuery);
       booksSnap.forEach((bookDoc) => {
@@ -207,7 +203,6 @@ export default function SettingsPage() {
         });
       });
 
-      // Sinkronisasi ke Story
       const storiesQuery = query(collection(firestore, 'stories'), where('authorId', '==', currentUser.uid));
       const storiesSnap = await getDocs(storiesQuery);
       storiesSnap.forEach((storyDoc) => {
@@ -218,7 +213,6 @@ export default function SettingsPage() {
         });
       });
 
-      // Sinkronisasi ke Reel
       const reelsQuery = query(collection(firestore, 'reels'), where('authorId', '==', currentUser.uid));
       const reelsSnap = await getDocs(reelsQuery);
       reelsSnap.forEach((reelDoc) => {
@@ -229,7 +223,6 @@ export default function SettingsPage() {
         });
       });
 
-      // Sinkronisasi ke Chat
       const chatsQuery = query(collection(firestore, 'chats'), where('participantUids', 'array-contains', currentUser.uid));
       const chatsSnap = await getDocs(chatsQuery);
       chatsSnap.forEach((chatDoc) => {
