@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles, AlertTriangle, BookUser, Upload, FileImage, Globe, Users, ArrowRight, PenTool, FileText, Type, File as FileIcon, Feather } from "lucide-react";
 import type { User as AppUser } from '@/lib/types';
-import { uploadFile, uploadBookFile } from '@/lib/uploader';
+import { uploadBookCover, uploadBookFile } from '@/lib/uploader';
 import { extractBookContent } from '../../actions/book-processor';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -108,7 +108,8 @@ export default function CreateBookPage() {
       if (selectedCover) {
         setIsUploadingCover(true);
         try {
-          coverUrl = await uploadFile(selectedCover);
+          // Struktur: covers/{jenis}/{judul}/{filename} kawan
+          coverUrl = await uploadBookCover(selectedCover, values.type, values.title);
         } catch (uploadError: any) {
           console.warn("Cover upload failed, using fallback:", uploadError.message);
         } finally {
@@ -119,7 +120,8 @@ export default function CreateBookPage() {
       if (creationMethod === 'upload' && bookFile) {
         setIsExtracting(true);
         try {
-          fileUrl = await uploadBookFile(bookFile);
+          // Struktur: books/{judul}/{filename}.pdf kawan
+          fileUrl = await uploadBookFile(bookFile, values.title);
           
           const base64Data = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
