@@ -38,7 +38,13 @@ import {
   Users,
   Check,
   UserPlus,
-  Share
+  Share,
+  Camera,
+  Settings,
+  Pencil,
+  Image as PhotoIcon,
+  Shield,
+  AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Chat, ChatMessage, User as AppUser, VideoCallSession, ChatParticipant } from '@/lib/types';
@@ -62,8 +68,19 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { VideoCall } from '@/components/chat/VideoCall';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 
 function VoiceNotePlayer({ audioUrl, isMe }: { audioUrl: string; isMe: boolean }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -188,18 +205,30 @@ export default function MessagesPage() {
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
   const [isCaller, setIsCaller] = useState(false);
 
+  // Group Admin System States
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isAddOtherToGroupOpen, setIsAddOtherToGroupOpen] = useState(false);
+  const [isGroupSettingsOpen, setIsGroupSettingsOpen] = useState(false);
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [editGroupName, setEditGroupName] = useState("");
+  const [editGroupPhoto, setEditGroupPhoto] = useState<File | null>(null);
+  const [editGroupPhotoPreview, setEditGroupPhotoPreview] = useState<string | null>(null);
+
   const [groupName, setGroupName] = useState("");
   const [groupSearchTerm, setGroupSearchTerm] = useState("");
   const [selectedGroupUsers, setSelectedGroupUsers] = useState<AppUser[]>([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+
+  // Sanitization States
+  const [isClearChatAlertOpen, setIsClearChatAlertOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const groupPhotoInputRef = useRef<HTMLInputElement>(null);
   const chatIdFromUrl = searchParams.get('chatId');
   const callIdFromUrl = searchParams.get('callId');
 
@@ -268,6 +297,7 @@ export default function MessagesPage() {
   
   const selectedChat = useMemo(() => chatThreads?.find(c => c.id === selectedChatId), [chatThreads, selectedChatId]);
   const otherParticipant = useMemo(() => selectedChat?.participants.find(p => p.uid !== currentUser?.uid), [selectedChat, currentUser]);
+  const isAdmin = useMemo(() => selectedChat?.adminUids?.includes(currentUser?.uid || ''), [selectedChat, currentUser]);
 
   const myGroups = useMemo(() => {
     if (!chatThreads) return [];
@@ -536,6 +566,7 @@ export default function MessagesPage() {
             groupName: groupName.trim(),
             participants,
             participantUids,
+            adminUids: [currentUser.uid], 
             unreadCounts,
             lastMessage: { 
                 text: `${currentUserProfile.displayName} menciptakan lingkaran diskusi baru.`, 
@@ -676,11 +707,104 @@ export default function MessagesPage() {
     }
   };
 
+  const handleUpdateGroupSettings = async () => {
+    if (!firestore || !selectedChatId || !selectedChat || !isAdmin || !currentUser) return;
+    
+    setIsUpdatingSettings(true);
+    try {
+        const batch = writeBatch(firestore);
+        const chatRef = doc(firestore, 'chats', selectedChatId);
+        const updates: any = {};
+        let changeText = "";
+
+        if (editGroupName.trim() && editGroupName.trim() !== selectedChat.groupName) {
+            updates.groupName = editGroupName.trim();
+            changeText = `${currentUser.displayName} mengganti nama grup menjadi: "${editGroupName.trim()}"`;
+        }
+
+        if (editGroupPhoto) {
+            const photoUrl = await uploadFile(editGroupPhoto);
+            updates.groupAvatarUrl = photoUrl;
+            changeText = changeText ? `${changeText} dan memperbarui foto profil grup.` : `${currentUser.displayName} memperbarui foto profil grup.`;
+        }
+
+        if (Object.keys(updates).length > 0) {
+            batch.update(chatRef, updates);
+            
+            if (changeText) {
+                const msgRef = doc(collection(firestore, `chats/${selectedChatId}/messages`));
+                batch.set(msgRef, {
+                    type: 'text',
+                    text: changeText,
+                    senderId: 'system',
+                    createdAt: serverTimestamp(),
+                });
+            }
+
+            await batch.commit();
+            toast({ variant: 'success', title: "Pengaturan Diperbarui" });
+            setIsGroupSettingsOpen(false);
+            setEditGroupPhoto(null);
+            setEditGroupPhotoPreview(null);
+        }
+    } catch (e) {
+        toast({ variant: 'destructive', title: "Gagal Memperbarui Grup" });
+    } finally {
+        setIsUpdatingSettings(false);
+    }
+  };
+
   const resetGroupCreation = () => {
     setGroupName("");
     setGroupSearchTerm("");
     setSelectedGroupUsers([]);
   };
+
+  const handleDeleteChat = async () => {
+    if (!selectedChatId || !firestore || !currentUser) return;
+    
+    setIsClearing(true);
+    try {
+      const messagesRef = collection(firestore, 'chats', selectedChatId, 'messages');
+      const snapshot = await getDocs(messagesRef);
+      
+      const batch = writeBatch(firestore);
+      
+      snapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+
+      batch.update(doc(firestore, 'chats', selectedChatId), {
+        lastMessage: { 
+          text: "Arsip percakapan telah dibersihkan kawan.", 
+          senderId: 'system', 
+          timestamp: serverTimestamp() 
+        },
+        [`unreadCounts.${currentUser.uid}`]: 0
+      });
+
+      await batch.commit();
+      
+      toast({ 
+        variant: 'success', 
+        title: "Arsip Dibersihkan", 
+        description: "Panggung diskusi kini kembali suci kawan." 
+      });
+      setIsClearChatAlertOpen(false);
+    } catch (e) {
+      console.error("Clear chat error:", e);
+      toast({ variant: 'destructive', title: "Gagal Membersihkan" });
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isGroupSettingsOpen && selectedChat) {
+        setEditGroupName(selectedChat.groupName || "");
+        setEditGroupPhotoPreview(selectedChat.groupAvatarUrl || null);
+    }
+  }, [isGroupSettingsOpen, selectedChat]);
 
   const filteredThreads = useMemo(() => {
     if (!chatThreads) return [];
@@ -701,20 +825,6 @@ export default function MessagesPage() {
     router.push('/messages');
     setSelectedChatId(null);
     setReplyingTo(null);
-  };
-
-  const handleDeleteChat = async () => {
-    if (!selectedChatId || !firestore) return;
-    if (confirm("Hapus arsip ini permanen kawan?")) {
-        try {
-            await updateDoc(doc(firestore, 'chats', selectedChatId), {
-                lastMessage: { text: "Arsip dibersihkan kawan.", timestamp: serverTimestamp(), senderId: 'system' }
-            });
-            toast({ title: "Arsip Dibersihkan" });
-        } catch (e) {
-            toast({ variant: 'destructive', title: "Gagal Menghapus" });
-        }
-    }
   };
 
   if (!currentUser) return null;
@@ -814,8 +924,12 @@ export default function MessagesPage() {
                                 >
                                     <div className="relative shrink-0">
                                         {chat.isGroup ? (
-                                            <div className="h-14 w-14 md:h-16 md:w-16 rounded-[1.5rem] bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center border-2 border-indigo-200 dark:border-indigo-800/50 shadow-md">
-                                                <Users className="h-7 w-7 text-indigo-600 dark:text-indigo-400" />
+                                            <div className="h-14 w-14 md:h-16 md:w-16 rounded-[1.5rem] bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center border-2 border-indigo-200 dark:border-indigo-800/50 shadow-md relative overflow-hidden">
+                                                {chat.groupAvatarUrl ? (
+                                                    <img src={chat.groupAvatarUrl} className="w-full h-full object-cover" alt="" />
+                                                ) : (
+                                                    <Users className="h-7 w-7 text-indigo-600 dark:text-indigo-400" />
+                                                )}
                                             </div>
                                         ) : (
                                             <Avatar className="h-14 w-14 md:h-16 md:w-16 border-2 border-background shadow-md transition-transform group-hover:scale-105">
@@ -878,8 +992,12 @@ export default function MessagesPage() {
                     <div className="flex items-center gap-4 flex-1 min-w-0 group">
                         <div className="relative">
                             {selectedChat.isGroup ? (
-                                <div className="h-10 w-10 md:h-12 md:w-12 rounded-[1rem] bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center border-2 border-indigo-200 dark:border-indigo-800/50 shadow-lg">
-                                    <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                <div className="h-10 w-10 md:h-12 md:w-12 rounded-[1rem] bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center border-2 border-indigo-200 dark:border-indigo-800/50 shadow-lg relative overflow-hidden">
+                                    {selectedChat.groupAvatarUrl ? (
+                                        <img src={selectedChat.groupAvatarUrl} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                        <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                    )}
                                 </div>
                             ) : (
                                 <Link href={`/profile/${otherParticipant?.username}`}>
@@ -943,15 +1061,25 @@ export default function MessagesPage() {
                                     </DropdownMenuItem>
                                 </>
                             ) : (
-                                <DropdownMenuItem 
-                                    className="rounded-xl h-11 gap-3 font-bold text-primary" 
-                                    onClick={() => setIsAddMemberOpen(true)}
-                                >
-                                    <UserPlus className="h-4 w-4" /> Tambahkan Anggota
-                                </DropdownMenuItem>
+                                <>
+                                    {isAdmin && (
+                                        <DropdownMenuItem 
+                                            className="rounded-xl h-11 gap-3 font-bold text-primary" 
+                                            onClick={() => setIsGroupSettingsOpen(true)}
+                                        >
+                                            <Settings className="h-4 w-4" /> Pengaturan Grup
+                                        </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem 
+                                        className="rounded-xl h-11 gap-3 font-bold text-primary" 
+                                        onClick={() => setIsAddMemberOpen(true)}
+                                    >
+                                        <UserPlus className="h-4 w-4" /> Tambahkan Anggota
+                                    </DropdownMenuItem>
+                                </>
                             )}
                             <DropdownMenuSeparator className="my-1 opacity-50" />
-                            <DropdownMenuItem className="rounded-xl h-11 gap-3 font-bold text-rose-500" onClick={handleDeleteChat}>
+                            <DropdownMenuItem className="rounded-xl h-11 gap-3 font-bold text-rose-500" onClick={() => setIsClearChatAlertOpen(true)}>
                                 <Trash2 className="h-4 w-4" /> Bersihkan Arsip
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -979,7 +1107,7 @@ export default function MessagesPage() {
                                     return (
                                         <div key={msg.id} className="flex justify-center py-4">
                                             <div className="px-6 py-2 rounded-full bg-muted/50 border border-border/10 backdrop-blur-sm shadow-inner">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground italic">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground italic text-center">
                                                     {msg.text}
                                                 </p>
                                             </div>
@@ -1292,6 +1420,7 @@ export default function MessagesPage() {
         )}
       </AnimatePresence>
 
+      {/* Dialog: Create Group */}
       <Dialog open={isCreateGroupOpen} onOpenChange={(o) => !o && setIsCreateGroupOpen(false)}>
         <DialogContent className="max-w-md w-[95vw] rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden flex flex-col max-h-[85dvh] bg-background/95 backdrop-blur-xl">
             <div className="p-8 bg-gradient-to-br from-primary/10 via-indigo-500/5 to-transparent border-b shrink-0 relative overflow-hidden">
@@ -1402,6 +1531,107 @@ export default function MessagesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog: Group Settings (Admin Only) */}
+      <Dialog open={isGroupSettingsOpen} onOpenChange={(o) => !o && !isUpdatingSettings && setIsGroupSettingsOpen(false)}>
+        <DialogContent className="max-w-md w-[95vw] rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden flex flex-col max-h-[85dvh] bg-background/95 backdrop-blur-xl">
+            <div className="p-8 bg-gradient-to-br from-indigo-500/10 via-primary/5 to-transparent border-b shrink-0 relative">
+                <DialogHeader>
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 shadow-xl text-primary ring-1 ring-primary/20">
+                            <Settings className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <DialogTitle className="font-headline text-2xl font-black">Pengaturan Grup</DialogTitle>
+                            <DialogDescription className="text-xs font-bold uppercase tracking-widest text-primary/60">Identitas Lingkaran Diskusi</DialogDescription>
+                        </div>
+                    </div>
+                </DialogHeader>
+            </div>
+
+            <div className="flex-1 flex flex-col p-8 space-y-10 overflow-y-auto">
+                <div className="flex flex-col items-center gap-6">
+                    <div className="relative group">
+                        <div className="absolute -inset-1 bg-gradient-to-tr from-primary via-accent to-primary rounded-[2rem] blur opacity-20 group-hover:opacity-40 transition-opacity" />
+                        <div className="relative h-32 w-32 rounded-[2.25rem] bg-muted flex items-center justify-center border-4 border-background shadow-2xl overflow-hidden">
+                            {editGroupPhotoPreview ? (
+                                <img src={editGroupPhotoPreview} className="w-full h-full object-cover" alt="Preview" />
+                            ) : (
+                                <Users className="h-12 w-12 text-muted-foreground/30" />
+                            )}
+                            <button 
+                                onClick={() => groupPhotoInputRef.current?.click()}
+                                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                            >
+                                <Camera className="h-8 w-8" />
+                            </button>
+                        </div>
+                        <input 
+                            type="file" 
+                            ref={groupPhotoInputRef} 
+                            className="hidden" 
+                            accept="image/*" 
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                    setEditGroupPhoto(file);
+                                    setEditGroupPhotoPreview(URL.createObjectURL(file));
+                                }
+                            }} 
+                        />
+                    </div>
+                    <div className="text-center space-y-1">
+                        <p className="text-xs font-black uppercase tracking-widest text-primary">Ubah Foto Lingkaran</p>
+                        <p className="text-[10px] text-muted-foreground font-medium italic">Sentuh untuk memilih citra visual baru kawan.</p>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="space-y-2 px-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Nama Lingkaran Baru</Label>
+                        <div className="relative">
+                            <Pencil className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/40" />
+                            <Input 
+                                placeholder="Nama Grup..." 
+                                className="h-14 pl-11 rounded-2xl bg-muted/30 border-none focus-visible:ring-primary/20 font-bold text-lg shadow-inner"
+                                value={editGroupName}
+                                onChange={(e) => setEditGroupName(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-5 bg-primary/5 rounded-[1.5rem] border border-primary/10 flex items-start gap-4">
+                    <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Hanya arsitek grup yang memiliki otoritas untuk memodifikasi identitas visual dan nama lingkaran ini kawan.
+                    </p>
+                </div>
+            </div>
+
+            <DialogFooter className="p-6 bg-muted/20 border-t flex flex-col sm:flex-row gap-3">
+                <Button 
+                    variant="ghost" 
+                    onClick={() => { setIsGroupSettingsOpen(false); setEditGroupPhoto(null); }} 
+                    className="rounded-full font-bold h-12 flex-1"
+                    disabled={isUpdatingSettings}
+                >
+                    Batal
+                </Button>
+                <Button 
+                    onClick={handleUpdateGroupSettings} 
+                    disabled={isUpdatingSettings || (!editGroupName.trim())}
+                    className="rounded-full font-black h-12 flex-1 shadow-xl shadow-primary/20"
+                >
+                    {isUpdatingSettings ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Mengharmonisasi...</>
+                    ) : (
+                        <><Check className="mr-2 h-4 w-4" /> Simpan Perubahan</>
+                    )}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isAddMemberOpen} onOpenChange={(o) => !o && setIsAddMemberOpen(false)}>
         <DialogContent className="max-w-md w-[95vw] rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden flex flex-col max-h-[85dvh] bg-background/95 backdrop-blur-xl">
             <div className="p-8 bg-gradient-to-br from-indigo-500/10 via-primary/5 to-transparent border-b shrink-0 relative overflow-hidden">
@@ -1486,13 +1716,13 @@ export default function MessagesPage() {
                     disabled={selectedGroupUsers.length === 0 || isCreatingGroup}
                     className="rounded-full px-10 font-black h-12 shadow-xl shadow-primary/20"
                 >
-                    {isCreatingGroup ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><Plus className="mr-2 h-4 w-4" /> Masukkan ke Lingkaran</>}
+                    {isCreatingGroup ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="mr-2 h-4 w-4" /> Masukkan ke Lingkaran</>}
                 </Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isAddOtherToGroupOpen} onOpenChange={setIsAddOtherToGroupOpen}>
+      <Dialog open={isAddOtherToGroupOpen} onOpenChange={(o) => !o && setIsAddOtherToGroupOpen(false)}>
         <DialogContent className="max-w-md w-[95vw] rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden flex flex-col max-h-[85dvh] bg-background/95 backdrop-blur-xl">
             <div className="p-8 bg-gradient-to-br from-primary/10 via-accent/5 to-transparent border-b shrink-0 relative overflow-hidden">
                 <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
@@ -1526,8 +1756,12 @@ export default function MessagesPage() {
                                     className="flex items-center gap-4 p-4 text-left rounded-[1.75rem] transition-all bg-card/50 border-2 border-transparent hover:bg-primary/5 hover:border-primary/20 active:scale-[0.98] group"
                                     disabled={isCreatingGroup}
                                 >
-                                    <div className="h-12 w-12 rounded-[1rem] bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center border-2 border-indigo-200 dark:border-indigo-800/50 shadow-md">
-                                        <Users className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                                    <div className="h-12 w-12 rounded-[1rem] bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center border-2 border-indigo-200 dark:border-indigo-800/50 shadow-md relative overflow-hidden">
+                                        {group.groupAvatarUrl ? (
+                                            <img src={group.groupAvatarUrl} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <Users className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                                        )}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-black text-sm truncate group-hover:text-primary transition-colors">{group.groupName}</p>
@@ -1607,6 +1841,31 @@ export default function MessagesPage() {
             </div>
         </DialogContent>
       </Dialog>
+
+      {/* AlertDialog: Clear Chat Confirmation */}
+      <AlertDialog open={isClearChatAlertOpen} onOpenChange={setIsClearChatAlertOpen}>
+        <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8 max-w-[90vw] md:max-w-md z-[160]">
+            <AlertDialogHeader>
+                <div className="mx-auto bg-rose-50 p-4 rounded-[1.5rem] w-fit mb-4">
+                    <AlertTriangle className="h-8 w-8 text-rose-500" />
+                </div>
+                <AlertDialogTitle className="font-headline text-2xl font-black text-center leading-tight">Bersihkan <br/><span className="text-primary italic">Arsip Pesan?</span></AlertDialogTitle>
+                <AlertDialogDescription className="font-medium text-center text-muted-foreground leading-relaxed pt-2">
+                    Tindakan ini permanen kawan. Seluruh bait inspirasi, rekaman suara, dan citra visual dalam arsip ini akan lenyap selamanya dari panggung diskusi.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="mt-8 flex flex-col sm:flex-row gap-2">
+                <AlertDialogCancel className="rounded-full border-2 font-bold h-12 flex-1" disabled={isClearing}>Batal</AlertDialogCancel>
+                <AlertDialogAction 
+                    onClick={(e) => { e.preventDefault(); handleDeleteChat(); }} 
+                    className="bg-rose-600 hover:bg-rose-700 rounded-full font-black h-12 px-8 shadow-xl shadow-rose-500/20 text-white flex-1"
+                    disabled={isClearing}
+                >
+                    {isClearing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Membersihkan...</> : "Ya, Lenyapkan"}
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
