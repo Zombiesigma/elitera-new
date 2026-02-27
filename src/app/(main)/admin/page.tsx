@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState } from "react";
@@ -37,7 +36,9 @@ import {
   ShieldAlert,
   FileText,
   Music2,
-  Sparkles
+  Sparkles,
+  Smartphone,
+  MapPin
 } from "lucide-react";
 import type { AuthorRequest, Book, User as AppUser, Story } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -59,8 +60,8 @@ export default function AdminPage() {
   const isAdmin = adminProfile?.role === 'admin';
 
   const authorRequestsQuery = useMemo(() => (
-    (firestore && currentUser) ? collection(firestore, 'authorRequests') : null
-  ), [firestore, currentUser]);
+    (firestore && currentUser && isAdmin) ? collection(firestore, 'authorRequests') : null
+  ), [firestore, currentUser, isAdmin]);
   const { data: rawAuthorRequests, isLoading: areAuthorRequestsLoading } = useCollection<AuthorRequest>(authorRequestsQuery);
   
   const authorRequests = useMemo(() => (
@@ -68,18 +69,18 @@ export default function AdminPage() {
   ), [rawAuthorRequests]);
 
   const pendingBooksQuery = useMemo(() => (
-    (firestore && currentUser) ? query(collection(firestore, 'books'), where('status', '==', 'pending_review')) : null
-  ), [firestore, currentUser]);
+    (firestore && currentUser && isAdmin) ? query(collection(firestore, 'books'), where('status', '==', 'pending_review')) : null
+  ), [firestore, currentUser, isAdmin]);
   const { data: pendingBooks, isLoading: areBooksLoading } = useCollection<Book>(pendingBooksQuery);
   
   const usersQuery = useMemo(() => (
-    (firestore && currentUser) ? collection(firestore, 'users') : null
-  ), [firestore, currentUser]);
+    (firestore && currentUser && isAdmin) ? collection(firestore, 'users') : null
+  ), [firestore, currentUser, isAdmin]);
   const { data: users, isLoading: areUsersLoading } = useCollection<AppUser>(usersQuery);
 
   const storiesQuery = useMemo(() => (
-    (firestore && currentUser) ? collection(firestore, 'stories') : null
-  ), [firestore, currentUser]);
+    (firestore && currentUser && isAdmin) ? collection(firestore, 'stories') : null
+  ), [firestore, currentUser, isAdmin]);
   const { data: activeStories, isLoading: areStoriesLoading } = useCollection<Story>(storiesQuery);
 
   const stats = useMemo(() => {
@@ -97,12 +98,25 @@ export default function AdminPage() {
     setProcessingId(request.id);
     try {
       const batch = writeBatch(firestore);
+      
+      // Update status lamaran kawan
       const requestRef = doc(firestore, 'authorRequests', request.id);
       batch.update(requestRef, { status: 'approved' });
+      
+      // Update role dan data industri penulis kawan
       const userRef = doc(firestore, 'users', request.userId);
-      batch.update(userRef, { role: 'penulis' });
+      batch.update(userRef, { 
+        role: 'penulis',
+        phoneNumber: request.phoneNumber || '',
+        domicile: request.domicile || '',
+      });
+      
       await batch.commit();
-      toast({ variant: 'success', title: "Penulis Disetujui", description: `${request.name} sekarang adalah seorang penulis resmi.` });
+      toast({ 
+        variant: 'success', 
+        title: "Pujangga Resmi Terdaftar", 
+        description: `${request.name} sekarang adalah seorang penulis resmi dengan identitas industri yang lengkap kawan.` 
+      });
     } catch (error) {
       toast({ variant: "destructive", title: "Gagal Menyetujui" });
     } finally {
@@ -124,12 +138,10 @@ export default function AdminPage() {
       
       const bookData = bookSnap.data() as Book;
       
-      toast({ title: "Menghasilkan Dokumen...", description: "Menyusun karya dan aset produksi untuk publikasi." });
+      toast({ title: "Menghasilkan Dokumen...", description: "Menyusun karya dan aset produksi untuk publikasi industri kawan." });
       
-      // 1. Generate Main PDF
       const pdfUrl = await generateBookPdf(bookId);
       
-      // 2. Generate Shot List PDF if screenplay
       let shotListUrl = "";
       if (bookData.type === 'screenplay') {
           try {
@@ -147,7 +159,6 @@ export default function AdminPage() {
         shotListUrl: shotListUrl || null
       });
 
-      // Broadcast notifications
       const allUsersSnap = await getDocs(collection(firestore, 'users'));
       allUsersSnap.forEach((userDoc) => {
           const userId = userDoc.id;
@@ -155,7 +166,7 @@ export default function AdminPage() {
               const notificationRef = doc(collection(firestore, `users/${userId}/notifications`));
               batch.set(notificationRef, {
                   type: 'broadcast',
-                  text: `Mahakarya baru telah terbit: "${bookData.title}" oleh ${bookData.authorName}`,
+                  text: `Mahakarya industri baru telah terbit: "${bookData.title}" oleh ${bookData.authorName}`,
                   link: `/books/${bookId}`,
                   actor: {
                       uid: bookData.authorId,
@@ -172,11 +183,11 @@ export default function AdminPage() {
       toast({ 
         variant: 'success', 
         title: "Karya Resmi Terbit", 
-        description: `"${bookTitle}" telah berhasil diterbitkan dan disiarkan ke seluruh pembaca.` 
+        description: `"${bookTitle}" telah berhasil diterbitkan dan disiarkan ke seluruh jaringan kawan.` 
       });
     } catch (error) {
       console.error("Error approving book:", error);
-      toast({ variant: "destructive", title: "Gagal Menyetujui", description: "Terjadi kesalahan saat pembuatan PDF atau broadcast." });
+      toast({ variant: "destructive", title: "Gagal Menyetujui", description: "Terjadi kesalahan saat pembuatan PDF atau broadcast kawan." });
     } finally {
       setProcessingId(null);
     }
@@ -198,8 +209,11 @@ export default function AdminPage() {
   if (isAdminChecking) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">Verifikasi Otoritas...</p>
+        <div className="relative">
+            <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full scale-150 animate-pulse" />
+            <Loader2 className="h-10 w-10 animate-spin text-primary relative z-10" />
+        </div>
+        <p className="text-muted-foreground font-bold uppercase tracking-[0.4em] text-[10px]">Otoritas Verifikasi...</p>
       </div>
     );
   }
@@ -211,7 +225,7 @@ export default function AdminPage() {
           <ShieldAlert className="h-12 w-12 text-destructive" />
         </div>
         <h1 className="text-3xl font-headline font-black">Akses Terbatas</h1>
-        <p className="text-muted-foreground">Anda tidak memiliki izin untuk mengakses area kontrol pusat.</p>
+        <p className="text-muted-foreground">Anda tidak memiliki izin untuk mengakses area kontrol pusat kawan.</p>
         <Button asChild className="rounded-full w-full">
           <Link href="/">Kembali ke Beranda</Link>
         </Button>
@@ -221,7 +235,6 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-8 md:space-y-10 pb-20 w-full overflow-x-hidden px-1">
-      {/* Header Premium */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[9px] font-black uppercase tracking-widest mb-3">
@@ -230,7 +243,7 @@ export default function AdminPage() {
           <h1 className="text-3xl md:text-5xl font-headline font-black tracking-tight leading-none">
             Pusat <span className="text-primary italic">Kendali</span>
           </h1>
-          <p className="text-sm text-muted-foreground mt-2 font-medium">Monitoring ekosistem dan moderasi karya puitis.</p>
+          <p className="text-sm text-muted-foreground mt-2 font-medium">Monitoring ekosistem dan moderasi karya puitis kawan.</p>
         </motion.div>
         
         <div className="grid grid-cols-2 md:flex gap-2">
@@ -252,7 +265,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Stats Section */}
       <div className="grid gap-6 md:grid-cols-12">
         <Card className="md:col-span-8 border-none shadow-xl rounded-[2rem] md:rounded-[2.5rem] bg-indigo-950 text-white overflow-hidden relative group">
             <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none group-hover:scale-110 transition-transform duration-700" />
@@ -303,7 +315,7 @@ export default function AdminPage() {
             </CardContent>
         </Card>
 
-        <Card className="md:col-span-4 border-none shadow-xl rounded-[2rem] bg-card p-6 md:p-8 flex flex-col justify-between group overflow-hidden relative">
+        <Card className="md:col-span-4 border-none shadow-xl rounded-[2rem] bg-card p-6 md:p-8 flex flex-col justify-between group overflow-hidden relative border border-white/5">
             <div className="absolute bottom-[-20%] right-[-10%] p-10 opacity-5 pointer-events-none group-hover:scale-110 transition-transform">
                 <ShieldCheck className="h-32 w-32 md:h-40 md:w-40 text-primary" />
             </div>
@@ -329,7 +341,6 @@ export default function AdminPage() {
         </Card>
       </div>
 
-      {/* Moderation Tabs */}
       <Tabs defaultValue="authors" className="space-y-6">
         <div className="flex items-center overflow-x-auto no-scrollbar pb-2">
             <TabsList className="bg-muted/50 p-1 rounded-full h-auto">
@@ -361,7 +372,7 @@ export default function AdminPage() {
                             <Table>
                                 <TableHeader className="bg-muted/10">
                                     <TableRow>
-                                        <TableHead className="px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Kandidat</TableHead>
+                                        <TableHead className="px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Identitas Industri</TableHead>
                                         <TableHead className="font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Kontak & Portofolio</TableHead>
                                         <TableHead className="text-right px-6 font-black uppercase text-[9px] tracking-widest whitespace-nowrap">Keputusan</TableHead>
                                     </TableRow>
@@ -380,10 +391,25 @@ export default function AdminPage() {
                                         </TableRow>
                                     ) : authorRequests.map(request => (
                                         <TableRow key={request.id}>
-                                            <TableCell className="px-6 py-4 font-bold text-sm">{request.name}</TableCell>
+                                            <TableCell className="px-6 py-4">
+                                                <div className="space-y-1">
+                                                    <p className="font-black text-sm">{request.name}</p>
+                                                    <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-bold uppercase">
+                                                        <MapPin className="h-2.5 w-2.5" /> {request.domicile}
+                                                    </div>
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="text-xs">
-                                                <p className="truncate max-w-[150px] font-medium text-muted-foreground">{request.email}</p>
-                                                {request.portfolio && <a href={request.portfolio} target="_blank" className="text-[10px] text-primary font-black hover:underline mt-1 flex items-center gap-1">Portofolio <ChevronRight className="h-2 w-2"/></a>}
+                                                <div className="space-y-1">
+                                                    <p className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                                                        <Smartphone className="h-3 w-3" /> {request.phoneNumber}
+                                                    </p>
+                                                    {request.portfolio && (
+                                                        <a href={request.portfolio} target="_blank" className="text-[10px] text-primary font-black hover:underline flex items-center gap-1">
+                                                            Portofolio <ChevronRight className="h-2 w-2"/>
+                                                        </a>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-right px-6 space-x-1.5 whitespace-nowrap">
                                                 <Button size="sm" onClick={() => handleApproveAuthor(request)} disabled={!!processingId} className="rounded-full h-8 px-4 text-[10px] bg-emerald-600 hover:bg-emerald-700 shadow-md">Setuju</Button>
@@ -506,7 +532,6 @@ export default function AdminPage() {
         </AnimatePresence>
       </Tabs>
       
-      {/* System Integrity Footer */}
       <div className="text-center opacity-20 select-none grayscale pb-10">
           <div className="flex items-center justify-center gap-3">
               <Sparkles className="h-4 w-4 text-primary" />
