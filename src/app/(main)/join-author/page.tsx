@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { BookUser, Loader2, Send, Info, Users, BookOpen, Star, Sparkles, ChevronRight, PenTool, CheckCircle2, Clock, Trophy, Crown, Medal, ArrowRight, ShieldCheck } from "lucide-react";
+import { BookUser, Loader2, Send, Info, Users, BookOpen, Star, Sparkles, ChevronRight, PenTool, CheckCircle2, Clock, Trophy, Crown, Medal, ArrowRight, ShieldCheck, MapPin, Smartphone } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,6 +30,8 @@ import { cn } from '@/lib/utils';
 const formSchema = z.object({
   name: z.string().min(3, { message: "Nama lengkap minimal 3 karakter." }),
   email: z.string().email({ message: "Email tidak valid." }),
+  phoneNumber: z.string().min(10, { message: "Nomor ponsel tidak valid." }),
+  domicile: z.string().min(3, { message: "Domisili diperlukan untuk sampul naskah." }),
   portfolio: z.string().url({ message: "URL portofolio tidak valid." }).optional().or(z.literal('')),
   motivation: z.string().min(20, { message: "Motivasi minimal 20 karakter." }),
 });
@@ -47,6 +49,8 @@ export default function JoinAuthorPage() {
         defaultValues: {
             name: "",
             email: "",
+            phoneNumber: "",
+            domicile: "",
             portfolio: "",
             motivation: "",
         },
@@ -91,9 +95,14 @@ export default function JoinAuthorPage() {
       }
 
       if (user && userProfile) {
+          // Sync existing user data to form
+          const currentValues = form.getValues();
           form.reset({
-              name: user.displayName || '',
-              email: user.email || '',
+              ...currentValues,
+              name: user.displayName || currentValues.name || '',
+              email: user.email || currentValues.email || '',
+              phoneNumber: userProfile.phoneNumber || currentValues.phoneNumber || '',
+              domicile: userProfile.domicile || currentValues.domicile || '',
           });
 
           if (userProfile.role === 'penulis' || userProfile.role === 'admin') {
@@ -131,7 +140,7 @@ export default function JoinAuthorPage() {
             if (!adminSnapshot.empty) {
                 const notificationData = {
                     type: 'author_request' as const,
-                    text: `${values.name} telah meminta untuk menjadi penulis.`,
+                    text: `${values.name} telah meminta untuk menjadi penulis industri.`,
                     link: `/admin`,
                     actor: {
                         uid: user.uid,
@@ -153,8 +162,8 @@ export default function JoinAuthorPage() {
 
             toast({
                 variant: 'success',
-                title: "Lamaran Terkirim",
-                description: "Teriam kasih! Kami akan meninjau lamaran Anda segera.",
+                title: "Lamaran Industri Terkirim",
+                description: "Terima kasih! Kami akan meninjau data profesional Anda segera kawan.",
             });
             setApplicationStatus('pending');
         } catch (error) {
@@ -162,7 +171,7 @@ export default function JoinAuthorPage() {
             toast({
                 variant: "destructive",
                 title: "Gagal Mengirim Lamaran",
-                description: "Terjadi kesalahan. Silakan coba lagi.",
+                description: "Terjadi kesalahan kawan. Silakan coba lagi.",
             });
         } finally {
             setIsSubmitting(false);
@@ -367,7 +376,7 @@ export default function JoinAuthorPage() {
                                                         </div>
                                                     </div>
                                                     <div className="text-center space-y-1">
-                                                        <p className="font-black text-base md:text-xl text-foreground tracking-tighter">{new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(author.followers)}</p>
+                                                        <p className="font-black text-base md:text-xl text-foreground tracking-tighter">{new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(author.followers)} Pengikut</p>
                                                         <div className="flex items-center justify-center gap-1 text-[7px] md:text-[8px] uppercase font-black tracking-widest text-muted-foreground opacity-50">
                                                             Pengikut
                                                         </div>
@@ -545,7 +554,7 @@ export default function JoinAuthorPage() {
                             </div>
                             <div>
                                 <CardTitle className="text-xl md:text-2xl font-headline font-black">Formulir Pujangga</CardTitle>
-                                <CardDescription className="font-bold uppercase tracking-[0.2em] text-[8px] md:text-[10px] text-primary/60 mt-0.5">Lengkapi data diri untuk kurasi</CardDescription>
+                                <CardDescription className="font-bold uppercase tracking-[0.2em] text-[8px] md:text-[10px] text-primary/60 mt-0.5">Lengkapi data profesional untuk kurasi industri</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
@@ -581,6 +590,41 @@ export default function JoinAuthorPage() {
                                     />
                                 </div>
 
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                                    <FormField
+                                        control={form.control}
+                                        name="phoneNumber"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="font-black text-[10px] md:text-xs uppercase tracking-widest ml-1">Nomor Ponsel (WhatsApp)</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative group">
+                                                        <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                                        <Input placeholder="0812..." {...field} className="h-12 md:h-14 pl-11 rounded-xl md:rounded-2xl bg-muted/30 border-none focus-visible:ring-primary/20 font-bold text-sm" />
+                                                    </div>
+                                                </FormControl>
+                                                <FormMessage className="text-[10px]" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="domicile"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="font-black text-[10px] md:text-xs uppercase tracking-widest ml-1">Domisili (Kota/Kabupaten)</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative group">
+                                                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                                        <Input placeholder="Jakarta, Indonesia" {...field} className="h-12 md:h-14 pl-11 rounded-xl md:rounded-2xl bg-muted/30 border-none focus-visible:ring-primary/20 font-bold text-sm" />
+                                                    </div>
+                                                </FormControl>
+                                                <FormMessage className="text-[10px]" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
                                 <FormField
                                     control={form.control}
                                     name="portfolio"
@@ -590,7 +634,7 @@ export default function JoinAuthorPage() {
                                             <FormControl>
                                                 <Input placeholder="https://karyasaya.com" {...field} className="h-12 md:h-14 rounded-xl md:rounded-2xl bg-muted/30 border-none focus-visible:ring-primary/20 font-bold px-4 md:px-5 text-sm" />
                                             </FormControl>
-                                            <FormDescription className="text-[9px] md:text-[10px] font-bold text-muted-foreground/60 ml-1 uppercase tracking-tighter">Tautkan tulisan atau blog yang pernah Anda publikasikan.</FormDescription>
+                                            <FormDescription className="text-[9px] md:text-[10px] font-bold text-muted-foreground/60 ml-1 uppercase tracking-tighter">Tautkan tulisan atau blog yang pernah Anda publikasikan kawan.</FormDescription>
                                             <FormMessage className="text-[10px]" />
                                         </FormItem>
                                     )}
@@ -607,7 +651,7 @@ export default function JoinAuthorPage() {
                                                     placeholder="Ceritakan gairah menulis Anda dan apa yang ingin Anda capai..." 
                                                     rows={5} 
                                                     {...field} 
-                                                    className="rounded-[1.5rem] md:rounded-[2rem] bg-muted/30 border-none focus-visible:ring-primary/20 resize-none py-4 px-5 md:py-5 md:px-6 font-medium text-sm md:text-base leading-relaxed"
+                                                    className="rounded-[1.5rem] md:rounded-[2rem] bg-muted/30 border-none focus-visible:ring-primary/20 resize-none py-4 px-5 md:py-5 md:px-6 font-medium text-sm md:text-base leading-relaxed shadow-inner"
                                                 />
                                             </FormControl>
                                             <FormMessage className="text-[10px]" />
