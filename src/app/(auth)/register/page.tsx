@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Loader2, Upload, User as UserIcon, Mail, Lock, Sparkles, Chrome, PenTool, Eye, EyeOff, ChevronLeft } from 'lucide-react';
 import { useAuthRedirect } from '@/hooks/use-auth-redirect';
-import { uploadFile } from '@/lib/uploader';
+import { uploadProfilePhoto } from '@/lib/uploader';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
 
@@ -66,7 +66,8 @@ export default function RegisterPage() {
 
     try {
       if (selectedFile) {
-        photoURL = await uploadFile(selectedFile);
+        // Simpan dengan struktur: foto profile/{nama user}/{filename} kawan
+        photoURL = await uploadProfilePhoto(selectedFile, values.fullName);
       }
 
       const { error } = await signUpWithEmail(values.email, values.password, values.fullName, photoURL);
@@ -118,11 +119,9 @@ export default function RegisterPage() {
 
   return (
     <div className="w-full max-w-[400px] flex flex-col items-center justify-center min-h-[100dvh] py-12 relative">
-      {/* Background Decorative Blobs */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
 
-      {/* Back Button for Mobile Convenience */}
       <div className="absolute top-6 left-0 px-4 md:px-0">
         <Button variant="ghost" size="sm" asChild className="rounded-full text-muted-foreground hover:text-primary">
           <Link href="/login"><ChevronLeft className="mr-1 h-4 w-4" /> Masuk</Link>
@@ -239,12 +238,13 @@ export default function RegisterPage() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full h-12 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all active:scale-95 group mt-2" disabled={isLoading}>
-                  {isLoading ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memproses...</>
-                  ) : (
-                    <><Sparkles className="mr-2 h-4 w-4 transition-transform group-hover:rotate-12" /> Buat Akun Gratis</>
-                  )}
+                <Button 
+                  type="submit" 
+                  className="w-full h-12 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all active:scale-95 group mt-2" 
+                  loading={isLoading}
+                >
+                  <Sparkles className="mr-2 h-4 w-4 transition-transform group-hover:rotate-12" /> 
+                  {isLoading ? 'Memproses...' : 'Buat Akun Gratis'}
                 </Button>
               </form>
             </Form>
@@ -258,7 +258,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full h-12 rounded-xl font-bold border-2 hover:bg-primary/5 hover:border-primary/20 transition-all active:scale-95 text-xs" onClick={handleGoogleSignIn} disabled={isLoading}>
+            <Button variant="outline" className="w-full h-12 rounded-xl font-bold border-2 hover:bg-primary/5 hover:border-primary/20 transition-all active:scale-95 text-xs" onClick={handleGoogleSignIn} loading={isLoading}>
               <Chrome className="mr-2 h-4 w-4 text-primary" /> Daftar dengan Google
             </Button>
 
