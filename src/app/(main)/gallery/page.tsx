@@ -70,6 +70,11 @@ import { id } from 'date-fns/locale';
 import { ArtCommentItem } from '@/components/comments/ArtCommentItem';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+/**
+ * Panggung Galeri Seni v17.1 - Final Synchronization Edition.
+ * Memastikan stabilitas visual dan fungsional dengan rasio media asli
+ * dan fitur autoplay audio-visual kawan.
+ */
 export default function GalleryPage() {
   const firestore = useFirestore();
   const { user: currentUser } = useUser();
@@ -247,7 +252,7 @@ function ArtCard({ art, onOpenDetails, delay }: { art: ArtWork; onOpenDetails: (
                 if (videoRef.current) {
                     if (entry.isIntersecting) {
                         videoRef.current.play().catch(error => {
-                            console.warn("Autoplay unmuted blocked kawan:", error);
+                            console.warn("Autoplay unmuted blocked:", error);
                             if (videoRef.current) {
                                 videoRef.current.muted = true;
                                 videoRef.current.play().catch(e => console.error("Still blocked:", e));
@@ -338,7 +343,7 @@ function ArtCard({ art, onOpenDetails, delay }: { art: ArtWork; onOpenDetails: (
     };
 
     const handleDelete = async () => {
-        if (!firestore || !confirm("Lenyapkan mahakarya ini dari galeri kawan?")) return;
+        if (!firestore || !confirm("Lenyapkan mahakarya ini kawan?")) return;
         try {
             await deleteDoc(doc(firestore, 'artworks', art.id));
             toast({ variant: 'success', title: "Karya Dilenyapkan" });
@@ -499,7 +504,7 @@ function ArtCard({ art, onOpenDetails, delay }: { art: ArtWork; onOpenDetails: (
                                 onClick={(e) => { e.stopPropagation(); onOpenDetails('comments'); }} 
                                 className="text-[11px] font-black text-primary/60 hover:text-primary block pt-2 transition-colors uppercase tracking-widest"
                             >
-                                Lihat semua {art.commentCount} ulasan puitis...
+                                Lihat semua {art.commentCount} ulasan kawan...
                             </button>
                         )}
 
@@ -573,7 +578,7 @@ function CreateArtModal({ isOpen, onClose, currentUserProfile }: { isOpen: boole
                 createdAt: serverTimestamp(),
             });
 
-            toast({ variant: 'success', title: "Karya Terpajang", description: "Mahakarya Anda kini menghiasi galeri Elitera." });
+            toast({ variant: 'success', title: "Karya Terpajang" });
             onClose();
             reset();
         } catch (e) {
@@ -639,7 +644,7 @@ function CreateArtModal({ isOpen, onClose, currentUserProfile }: { isOpen: boole
                         <div className="space-y-3">
                             <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/60 ml-1">Nama Pameran</label>
                             <Input 
-                                placeholder="Berikan judul..." 
+                                placeholder="Judul puitis..." 
                                 value={title} 
                                 onChange={(e) => setTitle(e.target.value)} 
                                 className="h-14 rounded-2xl bg-muted/30 border-none font-black text-lg md:text-xl px-6 shadow-inner focus-visible:ring-primary/20" 
@@ -652,7 +657,7 @@ function CreateArtModal({ isOpen, onClose, currentUserProfile }: { isOpen: boole
                                 <div className="relative group">
                                     <div className="absolute -inset-1 bg-gradient-to-tr from-primary/20 via-accent/10 to-primary/20 rounded-[2rem] blur opacity-40" />
                                     <textarea 
-                                        placeholder="Tuangkan bait-bait indahmu kawan..." 
+                                        placeholder="Tuangkan bait-bait indah kawan..." 
                                         rows={6}
                                         value={content}
                                         onChange={(e) => setContent(e.target.value)}
@@ -662,7 +667,7 @@ function CreateArtModal({ isOpen, onClose, currentUserProfile }: { isOpen: boole
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/60 ml-1">Media {type === 'video' ? '(Maks 25MB)' : '(Maks 5MB)'}</label>
+                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/60 ml-1">Media Visual {type === 'video' ? '(Maks 25MB)' : '(Maks 5MB)'}</label>
                                 <div 
                                     className="relative min-h-[200px] rounded-[2.5rem] bg-muted/30 border-2 border-dashed border-primary/20 flex flex-col items-center justify-center cursor-pointer hover:bg-primary/[0.03] transition-all overflow-hidden group shadow-inner"
                                     onClick={() => document.getElementById('gallery-file-input')?.click()}
@@ -701,7 +706,7 @@ function CreateArtModal({ isOpen, onClose, currentUserProfile }: { isOpen: boole
                         disabled={isSubmitting || !title.trim() || (type === 'quote' ? !content.trim() : !mediaFile)}
                         onClick={handlePublish}
                     >
-                        {isSubmitting ? <><Loader2 className="mr-3 h-6 w-6 animate-spin" /> Sedang Menayangkan...</> : <><SendIcon className="mr-3 h-5 w-5" /> Publikasikan Karya Seni</>}
+                        {isSubmitting ? <><Loader2 className="mr-3 h-6 w-6 animate-spin" /> Menayangkan...</> : <><SendIcon className="mr-3 h-5 w-5" /> Publikasikan</>}
                     </Button>
                 </div>
             </DialogContent>
@@ -777,7 +782,7 @@ function ArtDetailsModal({ artId, initialFocus, isOpen, onClose, currentUser, cu
             await batch.commit();
             setCommentText("");
         } catch (e) {
-            toast({ variant: 'destructive', title: "Gagal Mengirim Ulasan" });
+            toast({ variant: 'destructive', title: "Gagal Mengirim" });
         } finally {
             setIsSendingComment(false);
         }
@@ -790,7 +795,7 @@ function ArtDetailsModal({ artId, initialFocus, isOpen, onClose, currentUser, cu
             <DialogContent className="max-w-6xl w-[95vw] md:h-[85vh] rounded-[2.5rem] md:rounded-[3rem] p-0 overflow-hidden border-none shadow-2xl flex flex-col md:flex-row bg-background">
                 <DialogHeader className="sr-only">
                     <DialogTitle>Detail Karya: {art.title}</DialogTitle>
-                    <DialogDescription>Melihat mahakarya dan ulasan pujangga.</DialogDescription>
+                    <DialogDescription>Diskusi mahakarya pujangga kawan.</DialogDescription>
                 </DialogHeader>
 
                 <AnimatePresence>
@@ -840,7 +845,7 @@ function ArtDetailsModal({ artId, initialFocus, isOpen, onClose, currentUser, cu
                                 className="absolute top-6 right-6 z-20 bg-black/40 backdrop-blur-xl text-white p-3 rounded-2xl border border-white/10 opacity-0 group-hover/viewer:opacity-100 transition-opacity hidden md:flex items-center gap-2 hover:bg-black/60 shadow-2xl"
                             >
                                 <Minimize2 className="h-4 w-4" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Ulasan</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Fokus Ulasan</span>
                             </button>
                         </motion.div>
                     )}
@@ -856,7 +861,6 @@ function ArtDetailsModal({ artId, initialFocus, isOpen, onClose, currentUser, cu
                                 <button 
                                     onClick={() => setShowMedia(true)}
                                     className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-all active:scale-90 shadow-inner"
-                                    title="Lihat Karya"
                                 >
                                     <Maximize2 className="h-5 w-5" />
                                 </button>
@@ -967,7 +971,7 @@ function ArtDetailsModal({ artId, initialFocus, isOpen, onClose, currentUser, cu
                             <Input 
                                 value={commentText} 
                                 onChange={(e) => setCommentText(e.target.value)} 
-                                placeholder="Tulis apresiasimu..." 
+                                placeholder="Tulis apresiasi kawan..." 
                                 className="relative flex-1 bg-muted/30 border-none shadow-inner h-14 rounded-[1.5rem] text-[13px] font-medium focus-visible:ring-primary/20 px-6 transition-all" 
                                 disabled={isSendingComment}
                             />
@@ -1030,7 +1034,7 @@ function ShareArtDialog({ art, open, onOpenChange }: { art: ArtWork; open: boole
             } catch (err) {}
         } else {
             await navigator.clipboard.writeText(shareUrl);
-            toast({ variant: 'success', title: "Tautan Disalin", description: "Bagikan jejak seni." });
+            toast({ variant: 'success', title: "Tautan Disalin" });
         }
     };
 
@@ -1078,7 +1082,7 @@ function ShareArtDialog({ art, open, onOpenChange }: { art: ArtWork; open: boole
             await batch.commit();
             
             onOpenChange(false);
-            toast({ variant: 'success', title: "Karya Terkirim", description: `Mahakarya telah dibagikan ke obrolan.` });
+            toast({ variant: 'success', title: "Karya Terkirim" });
         } catch (error) {
             toast({ variant: 'destructive', title: "Gagal Membagikan" });
         } finally {
@@ -1098,7 +1102,7 @@ function ShareArtDialog({ art, open, onOpenChange }: { art: ArtWork; open: boole
                             </div>
                             <div>
                                 <DialogTitle className="font-headline text-2xl font-black">Bagikan Karya</DialogTitle>
-                                <DialogDescription className="text-[10px] font-black uppercase tracking-widest text-primary/60 mt-1">Jalin Koneksi Literasi</DialogDescription>
+                                <DialogDescription className="text-[10px] font-black uppercase tracking-widest text-primary/60 mt-1">Jalin Koneksi Literasi Visual</DialogDescription>
                             </div>
                         </div>
                     </DialogHeader>
@@ -1123,7 +1127,7 @@ function ShareArtDialog({ art, open, onOpenChange }: { art: ArtWork; open: boole
                     <div className="relative group shrink-0">
                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors z-10" />
                          <Input 
-                            placeholder="Cari pujangga atau lingkaran..." 
+                            placeholder="Cari pujangga..." 
                             className="relative h-12 pl-11 rounded-2xl bg-muted/30 border-none focus-visible:ring-primary/20 transition-all shadow-inner font-medium" 
                             value={searchTerm} 
                             onChange={(e) => setSearchTerm(e.target.value)} 
@@ -1178,7 +1182,7 @@ function ShareArtDialog({ art, open, onOpenChange }: { art: ArtWork; open: boole
                 <DialogFooter className="p-6 bg-muted/20 border-t flex gap-3">
                     <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full font-bold h-12 flex-1">Batal</Button>
                     <Button onClick={handleSendToChat} disabled={!selectedChatId || isSending} className="rounded-full px-10 font-black h-12 flex-1 shadow-xl shadow-primary/20">
-                        {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><SendIcon className="mr-2 h-4 w-4" /> Kirim ke Chat</>}
+                        {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><SendIcon className="mr-2 h-4 w-4" /> Kirim Sekarang</>}
                     </Button>
                 </DialogFooter>
             </DialogContent>
