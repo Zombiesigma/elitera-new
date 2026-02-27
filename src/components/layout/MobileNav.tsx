@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Home, BookUser, PlusSquare, Clapperboard, User, Loader2 } from 'lucide-react';
+import { Home, ImageIcon, PlusSquare, Clapperboard, User, Loader2 } from 'lucide-react';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import type { User as AppUser } from '@/lib/types';
@@ -8,12 +8,15 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
+/**
+ * MobileNav diperbarui untuk menempatkan Galeri Seni sebagai menu utama
+ * dan menyinkronkan alur navigasi puitis kawan.
+ */
 export function MobileNav() {
   const { user } = useUser();
   const firestore = useFirestore();
   const pathname = usePathname();
 
-  // Hide on immersive routes: messages, ai, reels, reader, editor
   const isImmersiveRoute = pathname?.startsWith('/messages') || 
                            pathname?.startsWith('/ai') || 
                            pathname?.startsWith('/reels') || 
@@ -29,7 +32,7 @@ export function MobileNav() {
 
   const navItems = [
     { href: '/', icon: Home, label: 'Beranda' },
-    { href: '/join-author', icon: BookUser, label: 'Penulis' },
+    { href: '/gallery', icon: ImageIcon, label: 'Galeri' },
     ...(canUpload ? [{ href: '/upload', icon: PlusSquare, label: 'Unggah' }] : []),
     { href: '/reels', icon: Clapperboard, label: 'Reels' },
     { href: '/profile', icon: User, label: 'Profil' },
