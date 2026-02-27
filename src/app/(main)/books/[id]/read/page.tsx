@@ -29,7 +29,9 @@ import {
   Video,
   Layers,
   Loader2,
-  Feather
+  Feather,
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
@@ -224,7 +226,7 @@ export default function ReadPage() {
               </h2>
               <div className="flex items-center justify-center gap-1.5 text-[7px] md:text-[8px] font-bold text-primary uppercase whitespace-nowrap">
                   {isScreenplay ? <Clapperboard className="h-2 w-2 md:h-2.5 md:w-2.5" /> : isPoem ? <Feather className="h-2 w-2 md:h-2.5 md:w-2.5" /> : <ScrollText className="h-2 w-2 md:h-2.5 md:w-2.5" />}
-                  {isScreenplay ? 'INDUSTRIAL SCRIPT MODE' : isPoem ? 'POETRY MODE' : 'NOVEL MODE'}
+                  {isScreenplay ? 'INDUSTRIAL SCRIPT PRO' : isPoem ? 'POETRY MODE' : 'NOVEL MODE'}
               </div>
           </div>
 
@@ -481,132 +483,151 @@ export default function ReadPage() {
           onScroll={handleScroll} 
           className="flex-1 overflow-y-auto scroll-smooth no-scrollbar relative z-10"
         >
-          <div className="max-w-4xl mx-auto px-6 py-12 space-y-20">
-            <header className="text-center space-y-6">
-                <h1 className="text-4xl md:text-6xl font-headline font-black italic">{book.title}</h1>
-                <div className="flex flex-col items-center gap-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Mahakarya Narasi Oleh</p>
-                    <p className="font-headline text-xl md:text-2xl font-black">{book.authorName}</p>
-                </div>
-            </header>
+          <div className={cn(
+              "w-full mx-auto",
+              isScreenplay ? "max-w-none px-0 py-0" : "max-w-4xl px-6 py-12"
+          )}>
+            {!isScreenplay && (
+                <header className="text-center space-y-6 mb-20">
+                    <h1 className="text-4xl md:text-6xl font-headline font-black italic">{book.title}</h1>
+                    <div className="flex flex-col items-center gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Mahakarya Narasi Oleh</p>
+                        <p className="font-headline text-xl md:text-2xl font-black">{book.authorName}</p>
+                    </div>
+                </header>
+            )}
 
             <article 
               className={cn(
                 "transition-all duration-500 mx-auto", 
-                isScreenplay ? "font-mono max-w-[8.5in]" : cn(fontFamily, "prose dark:prose-invert max-w-lg"),
+                isScreenplay ? "font-mono max-w-none" : cn(fontFamily, "prose dark:prose-invert max-w-lg"),
                 isPoem && "text-center italic"
               )} 
               style={{ fontSize: `${fontSize}px`, lineHeight: isScreenplay ? '1.2' : lineHeight }}
             >
-                {chapters?.map((chapter) => (
-                    <section key={chapter.id} id={`chapter-${chapter.id}`} className="mb-32">
-                        <h2 className={cn("font-black mb-14", isScreenplay ? "text-xl text-center italic uppercase tracking-[0.5em] opacity-30" : "text-3xl")}>
-                            {chapter.title}
-                        </h2>
-                        
-                        {isScreenplay ? (
-                            <div className="bg-white text-zinc-900 p-8 md:p-[1in] rounded-[2.5rem] shadow-[inset_0_0_50px_rgba(0,0,0,0.02),0_20px_50px_-15px_rgba(0,0,0,0.1)] border border-black/5 relative overflow-hidden flex flex-col gap-0.5">
-                                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                                {(() => {
-                                    try {
-                                        if (chapter.content.trim().startsWith('[') && chapter.content.trim().endsWith(']')) {
-                                            const blocks: ScreenplayBlock[] = JSON.parse(chapter.content);
-                                            let lastCharacterInScene: string | null = null;
+                <>
+                    {chapters?.map((chapter, cIdx) => (
+                        <section 
+                            key={chapter.id} 
+                            id={`chapter-${chapter.id}`} 
+                            className={cn(
+                                isScreenplay ? "mb-0" : "mb-32"
+                            )}
+                        >
+                            {!isScreenplay && (
+                                <h2 className="text-3xl font-black mb-14">
+                                    {chapter.title}
+                                </h2>
+                            )}
+                            
+                            {isScreenplay ? (
+                                <div className="bg-white text-zinc-900 px-6 py-12 md:p-[1in] shadow-2xl border-b border-zinc-100 relative overflow-hidden flex flex-col gap-0.5 mx-auto max-w-[8.5in] min-h-[11in]">
+                                    {/* Page Numbering Simulation */}
+                                    <div className="absolute top-10 right-10 text-sm font-bold opacity-30 select-none">
+                                        {cIdx + 1}.
+                                    </div>
+                                    
+                                    <h2 className="text-sm text-center italic uppercase tracking-[0.5em] opacity-20 mb-12 select-none">
+                                        {chapter.title}
+                                    </h2>
 
-                                            return (
-                                                <div className="flex flex-col">
-                                                    {blocks.map(block => {
-                                                        let displayText = block.text;
-                                                        
-                                                        if (block.type === 'slugline') {
-                                                            lastCharacterInScene = null;
-                                                        } else if (block.type === 'character') {
-                                                            const cleanName = block.text.trim().toUpperCase();
-                                                            if (lastCharacterInScene === cleanName && cleanName !== "") {
-                                                                displayText = `${cleanName} (CONT'D)`;
-                                                            } else {
-                                                                lastCharacterInScene = cleanName;
-                                                            }
-                                                        }
+                                    {(() => {
+                                        try {
+                                            if (chapter.content.trim().startsWith('[') && chapter.content.trim().endsWith(']')) {
+                                                const blocks: ScreenplayBlock[] = JSON.parse(chapter.content);
+                                                let lastCharacterInScene: string | null = null;
 
-                                                        return (
-                                                            <div key={block.id} className={cn(
-                                                                "whitespace-pre-wrap transition-all duration-300",
-                                                                block.type === 'slugline' && "font-bold uppercase mt-10 mb-4 text-[1.1em] border-b border-black/5 pb-1 tracking-tighter",
-                                                                block.type === 'action' && "text-left mb-4 opacity-90 font-medium leading-relaxed",
-                                                                block.type === 'character' && "mt-8 mb-0.5 font-bold uppercase tracking-tight text-center",
-                                                                block.type === 'parenthetical' && "mb-0.5 italic text-[0.9em] opacity-70 text-center before:content-['('] after:content-[')']",
-                                                                block.type === 'dialogue' && "mb-6 leading-relaxed text-[1.05em] text-center px-[10%]",
-                                                                block.type === 'transition' && "text-right font-bold uppercase mt-8 mb-8 tracking-[0.2em] text-[0.9em] opacity-50",
-                                                            )}
-                                                            style={
-                                                                block.type === 'character' ? { marginLeft: 'auto', marginRight: 'auto', width: 'fit-content', minWidth: '2in' } :
-                                                                block.type === 'parenthetical' ? { marginLeft: 'auto', marginRight: 'auto', width: 'fit-content' } :
-                                                                block.type === 'dialogue' ? { marginLeft: 'auto', marginRight: 'auto', width: '80%' } :
-                                                                {}
+                                                return (
+                                                    <div className="flex flex-col">
+                                                        {blocks.map(block => {
+                                                            let displayText = block.text;
+                                                            
+                                                            if (block.type === 'slugline') {
+                                                                lastCharacterInScene = null;
+                                                            } else if (block.type === 'character') {
+                                                                const cleanName = block.text.trim().toUpperCase();
+                                                                if (lastCharacterInScene === cleanName && cleanName !== "") {
+                                                                    displayText = `${cleanName} (CONT'D)`;
+                                                                } else {
+                                                                    lastCharacterInScene = cleanName;
+                                                                }
                                                             }
-                                                            >
-                                                                {displayText}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            );
-                                        } else {
-                                            return <div className="whitespace-pre-wrap italic opacity-60 text-center py-20 border-2 border-dashed rounded-3xl">Format naskah tidak didukung untuk tampilan terstruktur.</div>;
+
+                                                            return (
+                                                                <div key={block.id} className={cn(
+                                                                    "whitespace-pre-wrap transition-all duration-300",
+                                                                    block.type === 'slugline' && "font-bold uppercase mt-10 mb-4 text-[1.1em] tracking-tighter",
+                                                                    block.type === 'action' && "text-left mb-4 font-medium leading-relaxed",
+                                                                    block.type === 'character' && "mt-8 mb-0.5 font-bold uppercase tracking-tight text-center w-fit mx-auto min-w-[2in]",
+                                                                    block.type === 'parenthetical' && "mb-0.5 italic text-[0.9em] opacity-70 text-center w-fit mx-auto before:content-['('] after:content-[')']",
+                                                                    block.type === 'dialogue' && "mb-6 leading-relaxed text-[1.05em] text-center px-[15%] w-[85%] mx-auto",
+                                                                    block.type === 'transition' && "text-right font-bold uppercase mt-8 mb-8 tracking-[0.2em] text-[0.9em] opacity-50",
+                                                                )}
+                                                                >
+                                                                    {displayText}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            } else {
+                                                return <div className="whitespace-pre-wrap italic opacity-60 text-center py-20 border-2 border-dashed rounded-3xl">Format naskah tidak didukung untuk tampilan terstruktur.</div>;
+                                            }
+                                        } catch (e) {
+                                            return <div className="whitespace-pre-wrap leading-relaxed">{chapter.content}</div>;
                                         }
-                                    } catch (e) {
-                                        return <div className="whitespace-pre-wrap leading-relaxed">{chapter.content}</div>;
-                                    }
-                                })()}
-                            </div>
-                        ) : (
-                            <div className={cn("markdown-content", isPoem && "text-center italic")}>
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {chapter.content}
-                              </ReactMarkdown>
-                            </div>
-                        )}
-                    </section>
-                ))}
+                                    })()}
+                                </div>
+                            ) : (
+                                <div className={cn("markdown-content", isPoem && "text-center italic")}>
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {chapter.content}
+                                  </ReactMarkdown>
+                                </div>
+                            )}
+                        </section>
+                    ))}
+                </>
 
                 {isScreenplay && shotList && shotList.length > 0 && (
-                    <section id="production-shot-list" className="mt-32 pt-20 border-t border-dashed border-border/40">
-                        <div className="text-center space-y-4 mb-14">
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-black uppercase tracking-[0.3em]">
-                                <Sparkles className="h-3.5 w-3.5" /> Industrial Document
+                    <section id="production-shot-list" className="mt-0 py-20 bg-zinc-50 border-t border-zinc-200">
+                        <div className="max-w-4xl mx-auto px-6">
+                            <div className="text-center space-y-4 mb-14">
+                                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-black uppercase tracking-[0.3em]">
+                                    <Sparkles className="h-3.5 w-3.5" /> Industrial Document
+                                </div>
+                                <h2 className="text-3xl font-black uppercase tracking-[0.5em] text-orange-600 italic">Production Shot List</h2>
                             </div>
-                            <h2 className="text-2xl font-black uppercase tracking-[0.5em] text-orange-600 italic">Production Shot List</h2>
-                        </div>
-                        
-                        <div className="overflow-x-auto rounded-[2.5rem] border bg-card/50 backdrop-blur-md shadow-2xl overflow-hidden border-orange-500/10">
-                            <table className="w-full text-[10px] md:text-xs font-mono">
-                                <thead className="bg-orange-500/5 border-b border-orange-500/10">
-                                    <tr className="font-black uppercase tracking-tighter text-orange-600/60">
-                                        <th className="p-5 text-left w-12">#</th>
-                                        <th className="p-5 text-left w-12">SC</th>
-                                        <th className="p-5 text-left w-20">TYPE</th>
-                                        <th className="p-5 text-left">DESCRIPTION</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border/20">
-                                    {shotList.map(shot => (
-                                        <tr key={shot.id} className="hover:bg-orange-500/5 transition-colors group">
-                                            <td className="p-5 font-black opacity-40">{shot.number}</td>
-                                            <td className="p-5 font-bold">{shot.scene}</td>
-                                            <td className="p-5">
-                                                <span className="bg-orange-500/10 text-orange-600 px-2 py-1 rounded-lg font-black text-[9px] uppercase shadow-sm border border-orange-500/20">
-                                                    {shot.type}
-                                                </span>
-                                            </td>
-                                            <td className="p-5 text-foreground/80 italic leading-relaxed group-hover:text-foreground transition-colors">{shot.description}</td>
+                            
+                            <div className="overflow-x-auto rounded-[2.5rem] border bg-white shadow-2xl overflow-hidden border-orange-500/10">
+                                <table className="w-full text-[10px] md:text-xs font-mono">
+                                    <thead className="bg-orange-500/5 border-b border-orange-500/10">
+                                        <tr className="font-black uppercase tracking-tighter text-orange-600/60">
+                                            <th className="p-5 text-left w-12">#</th>
+                                            <th className="p-5 text-left w-12">SC</th>
+                                            <th className="p-5 text-left w-20">TYPE</th>
+                                            <th className="p-5 text-left">DESCRIPTION</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div className="mt-14 text-center">
-                            <p className="text-[9px] font-black uppercase tracking-[0.6em] text-muted-foreground opacity-30">End of Production Document • Elitera System</p>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/20">
+                                        {shotList.map(shot => (
+                                            <tr key={shot.id} className="hover:bg-orange-500/5 transition-colors group">
+                                                <td className="p-5 font-black opacity-40">{shot.number}</td>
+                                                <td className="p-5 font-bold">{shot.scene}</td>
+                                                <td className="p-5">
+                                                    <span className="bg-orange-500/10 text-orange-600 px-2 py-1 rounded-lg font-black text-[9px] uppercase shadow-sm border border-orange-500/20">
+                                                        {shot.type}
+                                                    </span>
+                                                </td>
+                                                <td className="p-5 text-zinc-600 italic leading-relaxed group-hover:text-zinc-900 transition-colors">{shot.description}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="mt-14 text-center">
+                                <p className="text-[9px] font-black uppercase tracking-[0.6em] text-muted-foreground opacity-30">End of Production Document • Elitera System</p>
+                            </div>
                         </div>
                     </section>
                 )}
@@ -624,14 +645,9 @@ export default function ReadPage() {
         .prose p { margin-bottom: 1.5em; text-indent: 1.5em; } 
         .prose p:first-of-type { text-indent: 0; }
         
-        @media (min-width: 768px) {
-            .font-mono article { padding-left: 0; padding-right: 0; }
-        }
-        
         @media (max-width: 768px) {
-            .font-mono article { font-size: 14px !important; }
-            .font-mono > div { padding: 1.5rem !important; }
-            .font-mono [style*="width: 80%"] { width: 95% !important; }
+            .font-mono article [class*="w-fit"] { min-width: 1.5in !important; }
+            .font-mono article [class*="w-[85%]"] { width: 95% !important; padding-left: 5%; padding-right: 5%; }
         }
       `}</style>
     </div>
