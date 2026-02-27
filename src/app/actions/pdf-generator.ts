@@ -3,7 +3,7 @@
 import { PDFDocument as PDFLib, StandardFonts, rgb } from 'pdf-lib';
 import { initializeFirebase } from '@/firebase';
 import { collection, query, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
-import type { Book, Chapter, Shot, ScreenplayBlock } from '@/lib/types';
+import type { Book, Chapter, Shot, ScreenplayBlock, User } from '@/lib/types';
 
 const PAGE_WIDTH = 595.28; 
 const PAGE_HEIGHT = 841.89; 
@@ -26,6 +26,11 @@ export async function generateBookPdf(bookId: string): Promise<string> {
   if (!bookSnap.exists()) throw new Error('Book not found');
   const book = { id: bookSnap.id, ...bookSnap.data() } as Book;
 
+  // Ambil data penulis industri kawan
+  const authorUserRef = doc(firestore, 'users', book.authorId);
+  const authorUserSnap = await getDoc(authorUserRef);
+  const authorProfile = authorUserSnap.exists() ? authorUserSnap.data() as User : null;
+
   const chaptersQuery = query(collection(firestore, 'books', bookId, 'chapters'), orderBy('order', 'asc'));
   const chaptersSnap = await getDocs(chaptersQuery);
   const chapters = chaptersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Chapter));
@@ -45,6 +50,7 @@ export async function generateBookPdf(bookId: string): Promise<string> {
   let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   const { width, height } = page.getSize();
 
+  // Draw Industry Border
   page.drawRectangle({
     x: 36, y: 36, width: width - 72, height: height - 72,
     borderColor: rgb(0.23, 0.51, 0.96), borderWidth: 1.5,
@@ -85,10 +91,34 @@ export async function generateBookPdf(bookId: string): Promise<string> {
     color: rgb(0.23, 0.51, 0.96),
   });
 
+  // Industry Contact Info - Bottom Left kawan
+  if (authorProfile) {
+    let contactY = 120;
+    const contactFontSize = 10;
+    const contactColor = rgb(0.3, 0.3, 0.3);
+
+    const contactLines = [
+      authorProfile.email,
+      authorProfile.phoneNumber || '',
+      authorProfile.domicile || ''
+    ].filter(Boolean);
+
+    contactLines.forEach(line => {
+      page.drawText(line, {
+        x: MARGIN,
+        y: contactY,
+        size: contactFontSize,
+        font: fontRegular,
+        color: contactColor,
+      });
+      contactY -= 14;
+    });
+  }
+
   const footerText = `Diterbitkan secara digital melalui ELITERA • ${new Date().getFullYear()}`;
   page.drawText(footerText, {
     x: (width - fontRegular.widthOfTextAtSize(footerText, 9)) / 2,
-    y: 80,
+    y: 60,
     size: 9,
     font: fontRegular,
     color: rgb(0.6, 0.6, 0.6),
@@ -227,7 +257,6 @@ export async function generateBookPdf(bookId: string): Promise<string> {
   const pdfBuffer = Buffer.from(pdfBytes);
   const safeFileName = `${sanitizePath(book.title)}.pdf`;
   
-  // Penentuan folder puitis kawan: books/{judul}, puisi/{judul}, naskah/{judul}
   const typeMap: Record<string, string> = {
     'book': 'books',
     'screenplay': 'naskah',
