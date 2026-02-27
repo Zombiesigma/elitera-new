@@ -11,6 +11,8 @@ export type User = {
   photoURL: string;
   displayName: string;
   email: string;
+  phoneNumber?: string; // Informasi industri kawan
+  domicile?: string;    // Informasi industri kawan
   status?: 'online' | 'offline';
   lastSeen?: Timestamp;
   notificationPreferences?: {
@@ -167,6 +169,8 @@ export type AuthorRequest = {
   userId: string;
   name: string;
   email: string;
+  phoneNumber: string; // Informasi industri kawan
+  domicile: string;    // Informasi industri kawan
   portfolio?: string;
   motivation: string;
   status: 'pending' | 'approved' | 'rejected';
