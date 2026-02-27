@@ -10,6 +10,13 @@ const PAGE_HEIGHT = 841.89;
 const MARGIN = 72; 
 const LEFT_MARGIN = 108; 
 
+/**
+ * Membersihkan string untuk digunakan sebagai nama folder kawan.
+ */
+function sanitizePath(str: string): string {
+  return str.replace(/[^a-z0-9]/gi, '_').toLowerCase().trim();
+}
+
 export async function generateBookPdf(bookId: string): Promise<string> {
   const { firestore } = initializeFirebase();
   if (!firestore) throw new Error('Firestore not initialized');
@@ -218,10 +225,16 @@ export async function generateBookPdf(bookId: string): Promise<string> {
 
   const pdfBytes = await pdfDoc.save();
   const pdfBuffer = Buffer.from(pdfBytes);
-  const safeFileName = `${book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
+  const safeFileName = `${sanitizePath(book.title)}.pdf`;
   
-  const safeTitle = book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  const folderPath = book.type === 'screenplay' ? `naskah/${safeTitle}` : book.type === 'poem' ? `puisi/${safeTitle}` : 'books';
+  // Penentuan folder puitis kawan: books/{judul}, puisi/{judul}, naskah/{judul}
+  const typeMap: Record<string, string> = {
+    'book': 'books',
+    'screenplay': 'naskah',
+    'poem': 'puisi'
+  };
+  const typeFolder = typeMap[book.type] || 'books';
+  const folderPath = `${typeFolder}/${sanitizePath(book.title)}`;
 
   return await uploadPdf(pdfBuffer, safeFileName, folderPath);
 }
@@ -311,9 +324,8 @@ export async function generateShotListPdf(bookId: string): Promise<string> {
   addFooter(page, pageCount, fontRegular, width);
 
   const pdfBytes = await pdfDoc.save();
-  const safeFileName = `shot_list_${book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
-  const safeTitle = book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  const folderPath = `naskah/${safeTitle}`;
+  const safeFileName = `shot_list_${sanitizePath(book.title)}.pdf`;
+  const folderPath = `naskah/${sanitizePath(book.title)}`;
 
   return await uploadPdf(Buffer.from(pdfBytes), safeFileName, folderPath);
 }
