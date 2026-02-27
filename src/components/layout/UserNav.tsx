@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -31,7 +30,9 @@ import {
   MessageSquare,
   Bot,
   Info,
-  LayoutGrid
+  LayoutGrid,
+  Image as ImageIcon,
+  BookUser
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -51,6 +52,10 @@ import type { User as AppUser } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
+/**
+ * UserNav diperbarui untuk menyertakan menu 'Daftar Jadi Penulis' secara menonjol
+ * di dalam menu Sheet bagi pengguna dengan peran pembaca kawan.
+ */
 export function UserNav() {
   const { user, isLoading } = useUser();
   const router = useRouter();
@@ -111,7 +116,8 @@ export function UserNav() {
             <div className="flex items-center gap-4">
                 <div className={cn(
                     "p-2.5 rounded-xl bg-muted group-hover:bg-primary group-hover:text-white transition-all duration-300 shadow-sm",
-                    className?.includes('bg-primary') && "bg-primary text-white"
+                    className?.includes('bg-primary') && "bg-primary text-white",
+                    className?.includes('bg-emerald') && "bg-emerald-500 text-white"
                 )}>
                     <Icon className="h-4.5 w-4.5" />
                 </div>
@@ -196,6 +202,19 @@ export function UserNav() {
                     description="Manajemen karya & kolaborasi"
                     className="bg-primary/5 border border-primary/10 mb-4" 
                 />
+              )}
+
+              {!isAuthor && (
+                <div className="space-y-1 mb-6">
+                    <p className="px-4 py-2 text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/60">Peluang Karir</p>
+                    <NavLink 
+                        href="/join-author" 
+                        icon={BookUser} 
+                        label="Daftar Jadi Penulis" 
+                        description="Bangun duniamu di Elitera"
+                        className="bg-emerald-500/5 border border-emerald-500/10" 
+                    />
+                </div>
               )}
               
               <div className="space-y-1 mb-6">
