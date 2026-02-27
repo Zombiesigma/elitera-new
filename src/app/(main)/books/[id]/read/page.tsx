@@ -31,7 +31,9 @@ import {
   Loader2,
   Feather,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
@@ -48,7 +50,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
-type ReadingTheme = 'light' | 'dark' | 'sepia' | 'paper';
+type ReadingTheme = 'light' | 'dark' | 'sepia' | 'paper' | 'studio';
 type FontFamily = 'font-serif' | 'font-sans' | 'font-mono';
 
 const PAPER_TEXTURE_URL = "https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&q=80&w=1600";
@@ -62,9 +64,9 @@ export default function ReadPage() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   
   const [fontSize, setFontSize] = useState(18);
-  const [lineHeight, setLineHeight] = useState(1.8);
+  const [lineHeight, setLineHeight] = useState(1.2);
   const [fontFamily, setFontFamily] = useState<FontFamily>('font-serif');
-  const [readingTheme, setReadingTheme] = useState<ReadingTheme>('paper');
+  const [readingTheme, setReadingTheme] = useState<ReadingTheme>('studio');
   
   const [readingProgress, setReadingProgress] = useState(0);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -159,12 +161,12 @@ export default function ReadPage() {
   const applyTheme = (t: ReadingTheme) => {
     setReadingTheme(t);
     localStorage.setItem('reading-theme', t);
-    document.documentElement.classList.toggle('dark', t === 'dark');
+    document.documentElement.classList.toggle('dark', t === 'dark' || t === 'studio');
   };
 
   useEffect(() => {
     setIsMounted(true);
-    const savedTheme = (localStorage.getItem('reading-theme') as ReadingTheme) || 'paper';
+    const savedTheme = (localStorage.getItem('reading-theme') as ReadingTheme) || 'studio';
     applyTheme(savedTheme);
   }, []);
 
@@ -190,12 +192,15 @@ export default function ReadPage() {
     color: '#3e2723'
   } : {};
 
+  let sceneCounter = 0;
+
   return (
     <div 
       className={cn(
         "flex h-full w-full transition-all duration-500 mx-auto overflow-hidden relative", 
         readingTheme === 'sepia' ? "bg-[#f4ecd8] text-[#5b4636]" : 
         readingTheme === 'dark' ? "bg-background" : 
+        readingTheme === 'studio' ? "bg-zinc-950 text-white" :
         readingTheme === 'light' ? "bg-background" : ""
       )}
       style={paperStyles}
@@ -212,7 +217,8 @@ export default function ReadPage() {
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <header className={cn(
             "flex items-center justify-between px-2 md:px-4 h-16 border-b sticky top-0 z-30 backdrop-blur-md",
-            readingTheme === 'paper' ? "bg-white/40 border-black/10" : "bg-background/80"
+            readingTheme === 'paper' ? "bg-white/40 border-black/10" : 
+            readingTheme === 'studio' ? "bg-black/60 border-white/5" : "bg-background/80"
         )}>
           <Link href={`/books/${book.id}`} className="shrink-0">
             <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 md:h-10 md:w-10">
@@ -226,7 +232,7 @@ export default function ReadPage() {
               </h2>
               <div className="flex items-center justify-center gap-1.5 text-[7px] md:text-[8px] font-bold text-primary uppercase whitespace-nowrap">
                   {isScreenplay ? <Clapperboard className="h-2 w-2 md:h-2.5 md:w-2.5" /> : isPoem ? <Feather className="h-2 w-2 md:h-2.5 md:w-2.5" /> : <ScrollText className="h-2 w-2 md:h-2.5 md:w-2.5" />}
-                  {isScreenplay ? 'INDUSTRIAL SCRIPT PRO' : isPoem ? 'POETRY MODE' : 'NOVEL MODE'}
+                  {isScreenplay ? 'INDUSTRIAL SCRIPT RENDERING' : isPoem ? 'POETRY MODE' : 'NOVEL MODE'}
               </div>
           </div>
 
@@ -274,7 +280,7 @@ export default function ReadPage() {
                   <Headphones className={cn("h-4.5 w-4.5 md:h-5 md:w-5", isPlaying && "text-primary animate-pulse")} />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-6 rounded-[2rem] border-none shadow-2xl" align="end">
+              <PopoverContent className="w-80 p-6 rounded-[2rem] border-none shadow-2xl bg-background/95 backdrop-blur-xl" align="end">
                 <div className="space-y-6">
                     <div className="space-y-4">
                         <div className="flex justify-between text-[10px] font-black uppercase"><span>Volume</span><span>{Math.round(volume*100)}%</span></div>
@@ -337,7 +343,7 @@ export default function ReadPage() {
                     <List className="h-4.5 w-4.5 md:h-5 md:w-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="bottom" className="rounded-t-[3rem] h-[80vh] md:h-[70vh] p-0 overflow-hidden z-[300] border-none shadow-[0_-20px_50px_rgba(0,0,0,0.2)]">
+                <SheetContent side="bottom" className="rounded-t-[3rem] h-[80vh] md:h-[70vh] p-0 overflow-hidden z-[300] border-none shadow-[0_-20px_50px_rgba(0,0,0,0.2)] bg-background">
                     <div className="mx-auto w-16 h-1.5 bg-muted rounded-full mt-4 mb-2 shrink-0 opacity-50" />
                     
                     <div className="flex flex-col h-full">
@@ -421,13 +427,13 @@ export default function ReadPage() {
                   <Settings className="h-4.5 w-4.5 md:h-5 md:w-5"/>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-6 rounded-[2rem] border-none shadow-2xl" align="end">
+              <PopoverContent className="w-80 p-6 rounded-[2rem] border-none shadow-2xl bg-background/95 backdrop-blur-xl" align="end">
                 <div className="space-y-8">
                     <div className="grid grid-cols-2 gap-2">
                         {[
                           { id: 'light', label: 'Light', icon: null },
+                          { id: 'studio', label: 'Studio', icon: <Clapperboard className="h-3 w-3" /> },
                           { id: 'sepia', label: 'Sepia', icon: null },
-                          { id: 'dark', label: 'Dark', icon: null },
                           { id: 'paper', label: 'Paper', icon: <ScrollText className="h-3 w-3" /> }
                         ].map(t => (
                             <Button 
@@ -521,13 +527,12 @@ export default function ReadPage() {
                             )}
                             
                             {isScreenplay ? (
-                                <div className="bg-white text-zinc-900 px-6 py-12 md:p-[1in] shadow-2xl border-b border-zinc-100 relative overflow-hidden flex flex-col gap-0.5 mx-auto max-w-[8.5in] min-h-[11in]">
-                                    {/* Page Numbering Simulation */}
-                                    <div className="absolute top-10 right-10 text-sm font-bold opacity-30 select-none">
+                                <div className="bg-white text-zinc-900 px-6 py-12 md:pl-[1.5in] md:pr-[1in] md:py-[1in] shadow-2xl border-b border-zinc-100 relative overflow-hidden flex flex-col gap-0.5 mx-auto max-w-[8.5in] min-h-[11in]">
+                                    <div className="absolute top-10 right-10 text-[10pt] font-black opacity-30 select-none tracking-widest">
                                         {cIdx + 1}.
                                     </div>
                                     
-                                    <h2 className="text-sm text-center italic uppercase tracking-[0.5em] opacity-20 mb-12 select-none">
+                                    <h2 className="text-[10pt] text-center italic uppercase tracking-[0.6em] opacity-20 mb-16 select-none font-black">
                                         {chapter.title}
                                     </h2>
 
@@ -541,13 +546,14 @@ export default function ReadPage() {
                                                     <div className="flex flex-col">
                                                         {blocks.map(block => {
                                                             let displayText = block.text;
+                                                            let isContd = false;
                                                             
                                                             if (block.type === 'slugline') {
                                                                 lastCharacterInScene = null;
                                                             } else if (block.type === 'character') {
                                                                 const cleanName = block.text.trim().toUpperCase();
                                                                 if (lastCharacterInScene === cleanName && cleanName !== "") {
-                                                                    displayText = `${cleanName} (CONT'D)`;
+                                                                    isContd = true;
                                                                 } else {
                                                                     lastCharacterInScene = cleanName;
                                                                 }
@@ -555,15 +561,18 @@ export default function ReadPage() {
 
                                                             return (
                                                                 <div key={block.id} className={cn(
-                                                                    "whitespace-pre-wrap transition-all duration-300",
-                                                                    block.type === 'slugline' && "font-bold uppercase mt-10 mb-4 text-[1.1em] tracking-tighter",
-                                                                    block.type === 'action' && "text-left mb-4 font-medium leading-relaxed",
-                                                                    block.type === 'character' && "mt-8 mb-0.5 font-bold uppercase tracking-tight text-center w-fit mx-auto min-w-[2in]",
-                                                                    block.type === 'parenthetical' && "mb-0.5 italic text-[0.9em] opacity-70 text-center w-fit mx-auto before:content-['('] after:content-[')']",
-                                                                    block.type === 'dialogue' && "mb-6 leading-relaxed text-[1.05em] text-center px-[15%] w-[85%] mx-auto",
-                                                                    block.type === 'transition' && "text-right font-bold uppercase mt-8 mb-8 tracking-[0.2em] text-[0.9em] opacity-50",
+                                                                    "whitespace-pre-wrap transition-all duration-300 relative",
+                                                                    block.type === 'slugline' && "font-bold uppercase mt-10 mb-4 text-[1.15em] tracking-tighter border-b border-black/5 pb-1",
+                                                                    block.type === 'action' && "text-left mb-4 font-medium leading-[1.2]",
+                                                                    block.type === 'character' && "mt-6 mb-0.5 font-bold uppercase tracking-tight text-left w-full max-w-[3in] mx-auto pl-[1.2in]",
+                                                                    block.type === 'parenthetical' && "mb-0.5 italic text-[0.95em] opacity-80 text-left w-full max-w-[2.5in] mx-auto pl-[0.8in] before:content-['('] after:content-[')']",
+                                                                    block.type === 'dialogue' && "mb-4 leading-[1.2] text-[1.05em] text-left w-full max-w-[3.5in] mx-auto pl-[0.2in]",
+                                                                    block.type === 'transition' && "text-right font-bold uppercase mt-8 mb-8 tracking-[0.25em] text-[0.95em] opacity-60",
                                                                 )}
                                                                 >
+                                                                    {isContd && block.type === 'character' && (
+                                                                        <div className="absolute left-1/2 -translate-x-1/2 top-[-1rem] text-[7pt] font-black text-black/20 uppercase tracking-widest ml-[0.6in]">(CONT'D)</div>
+                                                                    )}
                                                                     {displayText}
                                                                 </div>
                                                             );
@@ -571,7 +580,7 @@ export default function ReadPage() {
                                                     </div>
                                                 );
                                             } else {
-                                                return <div className="whitespace-pre-wrap italic opacity-60 text-center py-20 border-2 border-dashed rounded-3xl">Format naskah tidak didukung untuk tampilan terstruktur.</div>;
+                                                return <div className="whitespace-pre-wrap italic opacity-60 text-center py-24 border-2 border-dashed rounded-3xl">Format naskah tidak didukung untuk tampilan studio kawan.</div>;
                                             }
                                         } catch (e) {
                                             return <div className="whitespace-pre-wrap leading-relaxed">{chapter.content}</div>;
@@ -590,43 +599,43 @@ export default function ReadPage() {
                 </>
 
                 {isScreenplay && shotList && shotList.length > 0 && (
-                    <section id="production-shot-list" className="mt-0 py-20 bg-zinc-50 border-t border-zinc-200">
-                        <div className="max-w-4xl mx-auto px-6">
-                            <div className="text-center space-y-4 mb-14">
-                                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-black uppercase tracking-[0.3em]">
-                                    <Sparkles className="h-3.5 w-3.5" /> Industrial Document
+                    <section id="production-shot-list" className="mt-0 py-24 bg-zinc-950 border-t border-white/5">
+                        <div className="max-w-5xl mx-auto px-6">
+                            <div className="text-center space-y-4 mb-16">
+                                <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-orange-500/10 text-orange-500 text-[10px] font-black uppercase tracking-[0.4em] border border-orange-500/20">
+                                    <Sparkles className="h-3.5 w-3.5" /> Official Studio Document
                                 </div>
-                                <h2 className="text-3xl font-black uppercase tracking-[0.5em] text-orange-600 italic">Production Shot List</h2>
+                                <h2 className="text-4xl font-black uppercase tracking-[0.6em] text-white italic drop-shadow-2xl">Shot List</h2>
                             </div>
                             
-                            <div className="overflow-x-auto rounded-[2.5rem] border bg-white shadow-2xl overflow-hidden border-orange-500/10">
-                                <table className="w-full text-[10px] md:text-xs font-mono">
-                                    <thead className="bg-orange-500/5 border-b border-orange-500/10">
-                                        <tr className="font-black uppercase tracking-tighter text-orange-600/60">
-                                            <th className="p-5 text-left w-12">#</th>
-                                            <th className="p-5 text-left w-12">SC</th>
-                                            <th className="p-5 text-left w-20">TYPE</th>
-                                            <th className="p-5 text-left">DESCRIPTION</th>
+                            <div className="overflow-x-auto rounded-[3rem] border border-white/10 bg-zinc-900 shadow-[0_30px_100px_rgba(0,0,0,0.6)] overflow-hidden">
+                                <table className="w-full text-[10px] md:text-xs font-mono text-zinc-400">
+                                    <thead className="bg-white/5 border-b border-white/10">
+                                        <tr className="font-black uppercase tracking-tighter text-orange-500">
+                                            <th className="p-6 text-left w-16">#</th>
+                                            <th className="p-6 text-left w-16">SC</th>
+                                            <th className="p-6 text-left w-24">TYPE</th>
+                                            <th className="p-6 text-left">DESCRIPTION</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-border/20">
+                                    <tbody className="divide-y divide-white/5">
                                         {shotList.map(shot => (
-                                            <tr key={shot.id} className="hover:bg-orange-500/5 transition-colors group">
-                                                <td className="p-5 font-black opacity-40">{shot.number}</td>
-                                                <td className="p-5 font-bold">{shot.scene}</td>
-                                                <td className="p-5">
-                                                    <span className="bg-orange-500/10 text-orange-600 px-2 py-1 rounded-lg font-black text-[9px] uppercase shadow-sm border border-orange-500/20">
+                                            <tr key={shot.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                <td className="p-6 font-black opacity-30">{shot.number}</td>
+                                                <td className="p-6 font-bold text-white">{shot.scene}</td>
+                                                <td className="p-6">
+                                                    <span className="bg-white/5 text-white px-3 py-1.5 rounded-xl font-black text-[9px] uppercase shadow-inner border border-white/10">
                                                         {shot.type}
                                                     </span>
                                                 </td>
-                                                <td className="p-5 text-zinc-600 italic leading-relaxed group-hover:text-zinc-900 transition-colors">{shot.description}</td>
+                                                <td className="p-6 text-zinc-400 italic leading-relaxed group-hover:text-white transition-colors">{shot.description}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="mt-14 text-center">
-                                <p className="text-[9px] font-black uppercase tracking-[0.6em] text-muted-foreground opacity-30">End of Production Document • Elitera System</p>
+                            <div className="mt-20 text-center">
+                                <p className="text-[10px] font-black uppercase tracking-[0.8em] text-muted-foreground opacity-20">End of Production Document • Hollywood Grade Pro</p>
                             </div>
                         </div>
                     </section>
@@ -636,8 +645,8 @@ export default function ReadPage() {
         </div>
 
         {showScrollToTop && (
-            <Button size="icon" className="fixed bottom-8 right-6 rounded-full h-12 w-12 shadow-2xl z-50 bg-primary/90 backdrop-blur hover:bg-primary transition-all active:scale-90" onClick={() => scrollContainerRef.current?.scrollTo({top:0, behavior:'smooth'})}>
-                <ChevronsUp className="h-6 w-6 text-white"/>
+            <Button size="icon" className="fixed bottom-8 right-6 rounded-full h-14 w-14 shadow-[0_15px_40px_rgba(0,0,0,0.4)] z-50 bg-primary/90 backdrop-blur hover:bg-primary transition-all active:scale-90" onClick={() => scrollContainerRef.current?.scrollTo({top:0, behavior:'smooth'})}>
+                <ChevronsUp className="h-7 w-7 text-white"/>
             </Button>
         )}
       </div>
@@ -646,8 +655,7 @@ export default function ReadPage() {
         .prose p:first-of-type { text-indent: 0; }
         
         @media (max-width: 768px) {
-            .font-mono article [class*="w-fit"] { min-width: 1.5in !important; }
-            .font-mono article [class*="w-[85%]"] { width: 95% !important; padding-left: 5%; padding-right: 5%; }
+            .font-mono article [class*="max-w-"] { width: 90% !important; padding-left: 0 !important; margin-left: auto !important; margin-right: auto !important; }
         }
       `}</style>
     </div>
