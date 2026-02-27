@@ -86,6 +86,45 @@ export type Chapter = {
     createdAt: Timestamp;
 };
 
+export type ArtWork = {
+  id: string;
+  type: 'image' | 'video' | 'quote';
+  title: string;
+  content?: string;
+  mediaUrl?: string;
+  authorId: string;
+  authorName: string;
+  authorUsername: string;
+  authorAvatarUrl: string;
+  likes: number;
+  commentCount: number;
+  createdAt: Timestamp;
+};
+
+export type ArtLike = {
+  id: string;
+  userId: string;
+  likedAt: Timestamp;
+};
+
+export type ArtComment = {
+  id: string;
+  text: string;
+  userId: string;
+  userName: string;
+  username: string;
+  userAvatarUrl: string;
+  likeCount: number;
+  replyCount: number;
+  createdAt: Timestamp;
+};
+
+export type ArtCommentLike = {
+  id: string;
+  userId: string;
+  likedAt: Timestamp;
+};
+
 export type CollaborationInvitation = {
   id: string;
   bookId: string;
@@ -145,6 +184,7 @@ export type Chat = {
   id: string;
   participants: ChatParticipant[];
   participantUids: string[];
+  adminUids?: string[];
   isGroup?: boolean;
   groupName?: string;
   groupAvatarUrl?: string;
@@ -208,8 +248,21 @@ export type ReelShareMessage = {
   };
 };
 
+export type ArtShareMessage = {
+  id: string;
+  type: 'art_share';
+  art: {
+    id: string;
+    title: string;
+    type: 'image' | 'video' | 'quote';
+    mediaUrl?: string;
+    authorName: string;
+    content?: string;
+  };
+};
+
 export type ChatMessage = (
-  TextMessage | ImageMessage | VoiceNoteMessage | VideoCallMessage | BookShareMessage | ReelShareMessage
+  TextMessage | ImageMessage | VoiceNoteMessage | VideoCallMessage | BookShareMessage | ReelShareMessage | ArtShareMessage
 ) & {
   id: string;
   senderId: string;
