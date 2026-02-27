@@ -1,7 +1,6 @@
-
 /**
- * @fileOverview Utilitas unggahan file Elitera yang ultra-resilient.
- * Menggunakan GitHub sebagai Storage Utama dan Catbox sebagai Failover untuk Gambar.
+ * @fileOverview Utilitas unggahan file Elitera yang ultra-resilient dan terstruktur.
+ * Menggunakan GitHub sebagai Storage Utama dengan hirarki folder yang rapi kawan.
  */
 
 function ensureHttps(url: string): string {
@@ -12,10 +11,20 @@ function ensureHttps(url: string): string {
   return url;
 }
 
-async function uploadToGithub(file: File, folder: string = 'uploads'): Promise<string> {
+/**
+ * Membersihkan string untuk digunakan sebagai nama folder yang aman kawan.
+ */
+function sanitizePath(str: string): string {
+  return str.replace(/[^a-z0-9]/gi, '_').toLowerCase().trim();
+}
+
+/**
+ * Generic GitHub Uploader
+ */
+export async function uploadToGithub(file: File, customPath: string = 'uploads'): Promise<string> {
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('folder', folder);
+  formData.append('folder', customPath);
 
   const response = await fetch('/api/upload/github', {
     method: 'POST',
@@ -23,82 +32,68 @@ async function uploadToGithub(file: File, folder: string = 'uploads'): Promise<s
     signal: AbortSignal.timeout(120000),
   });
 
-  const data = await response.json();
-  
+  const text = await response.text();
+  if (!response.ok || !text) {
+      const errorData = text ? JSON.parse(text) : { error: 'Respons server kosong.' };
+      throw new Error(errorData.error || 'GitHub Storage gagal merespons.');
+  }
+
+  const data = JSON.parse(text);
   if (data.success && data.url) {
     return ensureHttps(data.url);
   }
   
-  throw new Error(data.error || 'GitHub Storage gagal merespons.');
+  throw new Error(data.error || 'Gagal mendapatkan URL dari penyimpanan.');
 }
 
-async function uploadToCatbox(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('service', 'Catbox');
-
-  const response = await fetch('https://uploader.himmel.web.id/api/upload', {
-    method: 'POST',
-    body: formData,
-    signal: AbortSignal.timeout(60000),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Catbox Proxy Error: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  const url = data.result || data.url;
-  
-  if (!url) {
-    throw new Error('Gagal mendapatkan URL dari Catbox.');
-  }
-  
-  return ensureHttps(url);
+/**
+ * Struktur: foto profile/{nama user}/{filename}
+ */
+export async function uploadProfilePhoto(file: File, userName: string): Promise<string> {
+  const path = `foto profile/${sanitizePath(userName)}`;
+  return await uploadToGithub(file, path);
 }
 
+/**
+ * Struktur: covers/{jenis buku}/{judul buku}/{filename}
+ */
+export async function uploadBookCover(file: File, type: string, title: string): Promise<string> {
+  const typeMap: Record<string, string> = {
+    'book': 'books',
+    'screenplay': 'naskah',
+    'poem': 'puisi'
+  };
+  const typeFolder = typeMap[type] || 'general';
+  const path = `covers/${typeFolder}/${sanitizePath(title)}`;
+  return await uploadToGithub(file, path);
+}
+
+/**
+ * Struktur: books/{judul buku}/{filename}.pdf
+ */
+export async function uploadBookFile(file: File, title: string): Promise<string> {
+  const path = `books/${sanitizePath(title)}`;
+  return await uploadToGithub(file, path);
+}
+
+/**
+ * Fallback Generic Uploader
+ */
 export async function uploadFile(file: File): Promise<string> {
-  if (file.size > 5 * 1024 * 1024) {
-    throw new Error('Ukuran file terlalu besar (Maksimal 5MB).');
-  }
-
-  try {
-    return await uploadToGithub(file, 'uploads');
-  } catch (err: any) {
-    console.warn('[Uploader] GitHub gagal, mencoba cadangan Catbox:', err.message);
-  }
-
-  try {
-    return await uploadToCatbox(file);
-  } catch (err: any) {
-    throw new Error(`Gagal mengunggah file: ${err.message}.`);
-  }
-}
-
-export async function uploadBookFile(file: File): Promise<string> {
-  if (file.size > 20 * 1024 * 1024) {
-    throw new Error('Berkas buku terlalu besar (Maksimal 20MB).');
-  }
-  return await uploadToGithub(file, 'books');
+  return await uploadToGithub(file, 'uploads');
 }
 
 export async function uploadVideo(file: File): Promise<string> {
-  if (file.size > 20 * 1024 * 1024) {
-    throw new Error('Ukuran video terlalu besar (Maksimal 20MB).');
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error('Ukuran video terlalu besar (Maksimal 25MB).');
   }
   return await uploadToGithub(file, 'videos');
 }
 
 export async function uploadAudio(file: File): Promise<string> {
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error('Rekaman suara terlalu besar (Maksimal 10MB).');
-  }
   return await uploadToGithub(file, 'audio');
 }
 
 export async function uploadMusic(file: File): Promise<string> {
-  if (file.size > 15 * 1024 * 1024) {
-    throw new Error('Berkas musik terlalu besar (Maksimal 15MB).');
-  }
   return await uploadToGithub(file, 'musik');
 }
