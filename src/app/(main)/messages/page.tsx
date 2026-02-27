@@ -42,12 +42,13 @@ import {
   Camera,
   Settings,
   Pencil,
-  Image as PhotoIcon,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  Quote,
+  Film
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Chat, ChatMessage, User as AppUser, VideoCallSession, ChatParticipant } from '@/lib/types';
+import type { Chat, ChatMessage, User as AppUser, VideoCallSession, ChatParticipant, ArtShareMessage } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -205,7 +206,6 @@ export default function MessagesPage() {
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
   const [isCaller, setIsCaller] = useState(false);
 
-  // Group Admin System States
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isAddOtherToGroupOpen, setIsAddOtherToGroupOpen] = useState(false);
@@ -220,7 +220,6 @@ export default function MessagesPage() {
   const [selectedGroupUsers, setSelectedGroupUsers] = useState<AppUser[]>([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
-  // Sanitization States
   const [isClearChatAlertOpen, setIsClearChatAlertOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   
@@ -324,7 +323,8 @@ export default function MessagesPage() {
     }
   }, [messages]);
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if ((!newMessage.trim() && !selectedImage && !audioBlob) || !currentUser || !selectedChatId || !firestore || !selectedChat) return;
     
     setIsSending(true);
@@ -343,7 +343,7 @@ export default function MessagesPage() {
           messageId: replyingTo.id,
           text: replyingTo.type === 'text' ? (replyingTo as any).text : 
                 replyingTo.type === 'image' ? '📷 Foto' : 
-                replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : 'Karya',
+                replyingTo.type === 'voice_note' ? '🎤 Pesan Suara' : 'Media',
           senderName: replySender?.displayName || 'Pujangga',
           type: replyingTo.type
         };
@@ -615,7 +615,7 @@ export default function MessagesPage() {
             
             const notificationRef = doc(collection(firestore, `users/${uid}/notifications`));
             batch.set(notificationRef, {
-                type: 'follow',
+                type: 'follow', 
                 text: `${currentUser.displayName} menambahkan Anda ke lingkaran: "${selectedChat.groupName}"`,
                 link: `/messages?chatId=${selectedChatId}`,
                 actor: {
@@ -685,7 +685,7 @@ export default function MessagesPage() {
 
         const notificationRef = doc(collection(firestore, `users/${otherParticipant.uid}/notifications`));
         batch.set(notificationRef, {
-            type: 'follow',
+            type: 'follow', 
             text: `${currentUser.displayName} menambahkan Anda ke lingkaran: "${targetGroup.groupName}"`,
             link: `/messages?chatId=${targetGroup.id}`,
             actor: {
@@ -760,7 +760,7 @@ export default function MessagesPage() {
     setSelectedGroupUsers([]);
   };
 
-  const handleDeleteChat = async () => {
+  const handleClearChat = async () => {
     if (!selectedChatId || !firestore || !currentUser) return;
     
     setIsClearing(true);
@@ -1150,7 +1150,7 @@ export default function MessagesPage() {
                                                     isMe 
                                                         ? "bg-primary text-white rounded-[2rem] rounded-tr-none shadow-xl shadow-primary/10 ring-1 ring-white/10" 
                                                         : "bg-card border border-border/50 text-foreground rounded-[2rem] rounded-tl-none shadow-md",
-                                                    msg.type === 'image' ? "p-2" : "p-5 md:p-6"
+                                                    (msg.type === 'image' || msg.type === 'art_share') ? "p-2" : "p-5 md:p-6"
                                                 )}>
                                                     {msg.replyTo && (
                                                       <div 
@@ -1270,6 +1270,36 @@ export default function MessagesPage() {
                                                             </div>
                                                         </Link>
                                                     )}
+
+                                                    {msg.type === 'art_share' && msg.art && (
+                                                        <Link href={`/gallery?id=${msg.art.id}`} className="block group/share w-full max-w-[260px]">
+                                                            <div className={cn(
+                                                                "flex flex-col rounded-2xl border transition-all active:scale-[0.98] overflow-hidden",
+                                                                isMe ? "bg-white/10 border-white/20 hover:bg-white/20" : "bg-primary/5 border-primary/10 hover:bg-primary/10"
+                                                            )}>
+                                                                <div className="aspect-square relative bg-zinc-900 flex items-center justify-center overflow-hidden">
+                                                                    {msg.art.type === 'quote' ? (
+                                                                        <div className="p-6 text-center space-y-2">
+                                                                            <Quote className="h-6 w-6 text-white/20 mx-auto" />
+                                                                            <p className="text-white text-xs font-black italic line-clamp-4">"{msg.art.content}"</p>
+                                                                        </div>
+                                                                    ) : msg.art.type === 'video' ? (
+                                                                        <div className="relative w-full h-full">
+                                                                            <video src={msg.art.mediaUrl} className="w-full h-full object-cover opacity-60" />
+                                                                            <div className="absolute inset-0 flex items-center justify-center"><Film className="h-8 w-8 text-white/60" /></div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <img src={msg.art.mediaUrl} className="w-full h-full object-cover" alt="" />
+                                                                    )}
+                                                                </div>
+                                                                <div className="p-4 space-y-1">
+                                                                    <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Mahakarya Visual</p>
+                                                                    <h4 className="font-black text-sm truncate italic">"{msg.art.title}"</h4>
+                                                                    <p className="text-[10px] font-bold opacity-80">Oleh {msg.art.authorName}</p>
+                                                                </div>
+                                                            </div>
+                                                        </Link>
+                                                    )}
                                                     
                                                     <div className={cn("flex items-center gap-2 mt-2.5 transition-opacity duration-300", isMe ? "justify-end text-white/50" : "justify-start text-muted-foreground/50")}>
                                                         {msg.createdAt && (
@@ -1310,7 +1340,7 @@ export default function MessagesPage() {
                 <div className="max-w-4xl mx-auto relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/20 to-primary/30 rounded-[2.25rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
                     
-                    <div className="relative flex flex-col gap-4">
+                    <form onSubmit={handleSendMessage} className="relative flex flex-col gap-4">
                         <AnimatePresence>
                             {replyingTo && (
                               <motion.div 
@@ -1357,7 +1387,7 @@ export default function MessagesPage() {
                         <div className="flex items-end gap-4">
                             <div className="flex-1 relative flex items-center">
                                 <div className="absolute left-2.5 bottom-2.5 md:bottom-3 z-10 flex items-center gap-1">
-                                    <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-full text-muted-foreground hover:text-primary active:scale-90 transition-all">
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-full text-muted-foreground hover:text-primary active:scale-90 transition-all">
                                         <ImageIcon className="h-5.5 w-5.5" />
                                     </Button>
                                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
@@ -1381,7 +1411,6 @@ export default function MessagesPage() {
                                         placeholder={audioBlob ? "Berikan keterangan suara..." : "Tuangkan narasi kawan..."} 
                                         value={newMessage} 
                                         onChange={(e)=>setNewMessage(e.target.value)} 
-                                        onKeyDown={(e)=>e.key==='Enter'&& !e.shiftKey && handleSendMessage()} 
                                         className="h-16 md:h-20 pl-16 pr-16 rounded-[2.25rem] bg-muted/40 border-none focus-visible:ring-primary/30 focus-visible:bg-background transition-all shadow-inner text-base md:text-lg font-medium"
                                         disabled={isSending}
                                     />
@@ -1389,22 +1418,22 @@ export default function MessagesPage() {
 
                                 <div className="absolute right-2.5 bottom-2.5 md:bottom-3 z-10 flex items-center gap-2">
                                     {!newMessage && !selectedImage && !audioBlob && !isRecording ? (
-                                        <Button variant="ghost" size="icon" onClick={startRecording} className="h-11 w-11 rounded-full text-muted-foreground hover:text-primary active:scale-90">
+                                        <Button type="button" variant="ghost" size="icon" onClick={startRecording} className="h-11 w-11 rounded-full text-muted-foreground hover:text-primary active:scale-90">
                                             <Mic className="h-6 w-6" />
                                         </Button>
                                     ) : isRecording ? (
-                                        <Button onClick={stopRecording} className="h-11 w-11 md:h-14 md:w-14 rounded-full bg-rose-500 hover:bg-rose-600 shadow-xl">
+                                        <Button type="button" onClick={stopRecording} className="h-11 w-11 md:h-14 md:w-14 rounded-full bg-rose-500 hover:bg-rose-600 shadow-xl">
                                             <CheckCheck className="h-6 w-6 text-white" />
                                         </Button>
                                     ) : (
-                                        <Button size="icon" onClick={handleSendMessage} className="h-11 w-11 md:h-14 md:w-14 rounded-full md:rounded-[1.5rem] shadow-2xl shadow-primary/30 transition-all active:scale-[0.85] bg-primary hover:bg-primary/90" disabled={isSending}>
+                                        <Button type="submit" size="icon" className="h-11 w-11 md:h-14 md:w-14 rounded-full md:rounded-[1.5rem] shadow-2xl shadow-primary/30 transition-all active:scale-[0.85] bg-primary hover:bg-primary/90" disabled={isSending}>
                                             {isSending ? <Loader2 className="h-6 w-6 animate-spin text-white" /> : <Send className="h-6 w-6 text-white" />}
                                         </Button>
                                     )}
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </form>
                 </div>
                 
                 <div className="hidden md:flex items-center justify-center gap-6 mt-6 opacity-30 select-none grayscale">
@@ -1420,7 +1449,6 @@ export default function MessagesPage() {
         )}
       </AnimatePresence>
 
-      {/* Dialog: Create Group */}
       <Dialog open={isCreateGroupOpen} onOpenChange={(o) => !o && setIsCreateGroupOpen(false)}>
         <DialogContent className="max-w-md w-[95vw] rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden flex flex-col max-h-[85dvh] bg-background/95 backdrop-blur-xl">
             <div className="p-8 bg-gradient-to-br from-primary/10 via-indigo-500/5 to-transparent border-b shrink-0 relative overflow-hidden">
@@ -1531,7 +1559,6 @@ export default function MessagesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: Group Settings (Admin Only) */}
       <Dialog open={isGroupSettingsOpen} onOpenChange={(o) => !o && !isUpdatingSettings && setIsGroupSettingsOpen(false)}>
         <DialogContent className="max-w-md w-[95vw] rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden flex flex-col max-h-[85dvh] bg-background/95 backdrop-blur-xl">
             <div className="p-8 bg-gradient-to-br from-indigo-500/10 via-primary/5 to-transparent border-b shrink-0 relative">
@@ -1592,7 +1619,7 @@ export default function MessagesPage() {
                             <Pencil className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/40" />
                             <Input 
                                 placeholder="Nama Grup..." 
-                                className="h-14 pl-11 rounded-2xl bg-muted/30 border-none focus-visible:ring-primary/20 font-bold text-lg shadow-inner"
+                                className="h-14 rounded-2xl bg-muted/30 border-none focus-visible:ring-primary/20 font-bold text-lg shadow-inner"
                                 value={editGroupName}
                                 onChange={(e) => setEditGroupName(e.target.value)}
                             />
@@ -1716,7 +1743,7 @@ export default function MessagesPage() {
                     disabled={selectedGroupUsers.length === 0 || isCreatingGroup}
                     className="rounded-full px-10 font-black h-12 shadow-xl shadow-primary/20"
                 >
-                    {isCreatingGroup ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="mr-2 h-4 w-4" /> Masukkan ke Lingkaran</>}
+                    {isCreatingGroup ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><Plus className="mr-2 h-4 w-4" /> Masukkan ke Lingkaran</>}
                 </Button>
             </DialogFooter>
         </DialogContent>
@@ -1842,7 +1869,6 @@ export default function MessagesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* AlertDialog: Clear Chat Confirmation */}
       <AlertDialog open={isClearChatAlertOpen} onOpenChange={setIsClearChatAlertOpen}>
         <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8 max-w-[90vw] md:max-w-md z-[160]">
             <AlertDialogHeader>
@@ -1857,7 +1883,7 @@ export default function MessagesPage() {
             <AlertDialogFooter className="mt-8 flex flex-col sm:flex-row gap-2">
                 <AlertDialogCancel className="rounded-full border-2 font-bold h-12 flex-1" disabled={isClearing}>Batal</AlertDialogCancel>
                 <AlertDialogAction 
-                    onClick={(e) => { e.preventDefault(); handleDeleteChat(); }} 
+                    onClick={(e) => { e.preventDefault(); handleClearChat(); }} 
                     className="bg-rose-600 hover:bg-rose-700 rounded-full font-black h-12 px-8 shadow-xl shadow-rose-500/20 text-white flex-1"
                     disabled={isClearing}
                 >
