@@ -86,7 +86,6 @@ export default function HomePage() {
     .slice(0, 10);
   }, [areAuthors, rawBooks]);
 
-  // CATEGORIZED COLLECTIONS
   const popularBooks = useMemo(() => {
     if (!rawBooks) return null;
     return [...rawBooks]
@@ -140,11 +139,9 @@ export default function HomePage() {
 
   return (
     <div className="relative pb-32 overflow-x-hidden w-full max-w-lg mx-auto bg-background/50">
-      {/* Dynamic Background */}
       <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-primary/10 via-background to-transparent -z-10" />
 
       <div className="space-y-12 w-full pt-4">
-        {/* Stories Section */}
         <section className="relative z-20 w-full px-4">
           <div className="flex items-center gap-2 mb-5 px-1">
              <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
@@ -157,7 +154,6 @@ export default function HomePage() {
           />
         </section>
 
-        {/* Hero Section */}
         <AnimatePresence mode="wait">
           {showHero && (
             <motion.section
@@ -196,7 +192,6 @@ export default function HomePage() {
           )}
         </AnimatePresence>
 
-        {/* Categories Grid */}
         <section className="space-y-6 px-4">
           <div className="flex items-center gap-3 px-1">
             <h2 className="text-lg font-headline font-black tracking-tight">
@@ -220,7 +215,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Top Authors */}
         <section className="space-y-6">
             <div className="flex items-center justify-between px-5">
                 <h2 className="text-lg font-headline font-black tracking-tight">
@@ -267,7 +261,6 @@ export default function HomePage() {
             </div>
         </section>
 
-        {/* Content Sections */}
         <div className="space-y-12 px-4">
           <section className="space-y-6">
             <h2 className="text-lg font-headline font-black tracking-tight flex items-center gap-2">
@@ -285,7 +278,7 @@ export default function HomePage() {
 
           <section className="space-y-6">
             <h2 className="text-lg font-headline font-black tracking-tight flex items-center gap-2">
-                <Clapperboard className="h-5 w-5 text-indigo-500" /> Naskah <span className="text-primary italic">Film</span>
+                <Clapperboard className="h-5 w-5 text-indigo-500" /> Naskah <span className="text-primary italic">Industri</span>
             </h2>
             <BookCarousel title="" books={screenplayBooks} isLoading={areBooksLoading} />
           </section>
@@ -305,7 +298,6 @@ export default function HomePage() {
           </section>
         </div>
 
-        {/* Footer CTA */}
         {!isProfileLoading && userProfile?.role === 'pembaca' && (
           <motion.section 
             initial={{ opacity: 0, y: 20 }}
