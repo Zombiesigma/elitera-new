@@ -28,7 +28,7 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
   const firestore = useFirestore();
   const { user: currentUser } = useUser();
   const { toast } = useToast();
-  
+
   const [isVisible, setIsVisible] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -37,27 +37,32 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
   const [isPaused, setIsPaused] = useState(false);
   const [showPlayPauseAnim, setShowPlayPauseAnim] = useState<'play' | 'pause' | null>(null);
   const [progress, setProgress] = useState(0);
-  
+  const [aspectRatio, setAspectRatio] = useState('9 / 16'); // fallback
+
   const viewTracked = useRef(false);
   const lastClickTime = useRef(0);
 
-  const likeRef = useMemo(() => (
-    (firestore && currentUser) ? doc(firestore, 'reels', reel.id, 'likes', currentUser.uid) : null
-  ), [firestore, currentUser, reel.id]);
+  const likeRef = useMemo(
+    () => (firestore && currentUser ? doc(firestore, 'reels', reel.id, 'likes', currentUser.uid) : null),
+    [firestore, currentUser, reel.id]
+  );
   const { data: likeDoc } = useDoc<ReelLike>(likeRef);
   const isLiked = !!likeDoc;
 
+  // Observer untuk visibility (autoplay & view tracking)
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
         setIsVisible(entry.isIntersecting);
         if (entry.isIntersecting && !viewTracked.current && firestore && currentUser && currentUser.uid !== reel.authorId) {
-            const reelRef = doc(firestore, 'reels', reel.id);
-            const viewRef = doc(firestore, 'reels', reel.id, 'views', currentUser.uid);
-            const batch = writeBatch(firestore);
-            batch.update(reelRef, { viewCount: increment(1) });
-            batch.set(viewRef, { viewedAt: serverTimestamp() });
-            batch.commit().then(() => { viewTracked.current = true; });
+          const reelRef = doc(firestore, 'reels', reel.id);
+          const viewRef = doc(firestore, 'reels', reel.id, 'views', currentUser.uid);
+          const batch = writeBatch(firestore);
+          batch.update(reelRef, { viewCount: increment(1) });
+          batch.set(viewRef, { viewedAt: serverTimestamp() });
+          batch.commit().then(() => {
+            viewTracked.current = true;
+          });
         }
       },
       { threshold: 0.8 }
@@ -65,12 +70,26 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
 
     const currentRef = containerRef.current;
     if (currentRef) observer.observe(currentRef);
-    return () => { if (currentRef) observer.unobserve(currentRef); };
+    return () => {
+      if (currentRef) observer.unobserve(currentRef);
+    };
   }, [firestore, currentUser, reel.id, reel.authorId]);
 
+  // Ambil dimensi asli video untuk atur rasio aspek
+  const handleLoadedMetadata = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const { videoWidth, videoHeight } = video;
+    if (videoWidth && videoHeight) {
+      setAspectRatio(`${videoWidth} / ${videoHeight}`);
+    }
+    // Jika ada data dimensi di dokumen reel (misal reel.width, reel.height), bisa langsung dipakai:
+    // if (reel.width && reel.height) setAspectRatio(`${reel.width} / ${reel.height}`);
+  };
+
+  // Kontrol play/pause berdasarkan visibilitas, modal, dan status pause manual
   useEffect(() => {
     if (!videoRef.current) return;
-
     if (isVisible && !isPausedByModal && !isPaused) {
       videoRef.current.play().catch(() => {});
     } else {
@@ -78,6 +97,7 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
     }
   }, [isVisible, isPausedByModal, isPaused]);
 
+  // Update progress bar
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       const currentProgress = (videoRef.current.currentTime / videoRef.current.duration) * 100;
@@ -85,83 +105,86 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
     }
   };
 
-  const handleToggleLike = useCallback(async (forcedState?: boolean) => {
-    if (!firestore || !currentUser || !likeRef || isLiking) return;
-    
-    if (forcedState === true && isLiked) {
+  const handleToggleLike = useCallback(
+    async (forcedState?: boolean) => {
+      if (!firestore || !currentUser || !likeRef || isLiking) return;
+
+      if (forcedState === true && isLiked) {
         setShowHeartAnim(true);
         setTimeout(() => setShowHeartAnim(false), 1000);
         return;
-    }
+      }
 
-    setIsLiking(true);
-    if (forcedState === true) {
+      setIsLiking(true);
+      if (forcedState === true) {
         setShowHeartAnim(true);
         setTimeout(() => setShowHeartAnim(false), 1000);
-    }
-    
-    const reelRef = doc(firestore, 'reels', reel.id);
-    const batch = writeBatch(firestore);
-
-    try {
-      const willBeLiked = forcedState !== undefined ? forcedState : !isLiked;
-      
-      if (!willBeLiked && isLiked) {
-        batch.delete(likeRef);
-        batch.update(reelRef, { likes: increment(-1) });
-      } else if (willBeLiked && !isLiked) {
-        batch.set(likeRef, { userId: currentUser.uid, likedAt: serverTimestamp() });
-        batch.update(reelRef, { likes: increment(1) });
       }
-      
-      await batch.commit();
 
-      if (willBeLiked && !isLiked && currentUser.uid !== reel.authorId) {
+      const reelRef = doc(firestore, 'reels', reel.id);
+      const batch = writeBatch(firestore);
+
+      try {
+        const willBeLiked = forcedState !== undefined ? forcedState : !isLiked;
+
+        if (!willBeLiked && isLiked) {
+          batch.delete(likeRef);
+          batch.update(reelRef, { likes: increment(-1) });
+        } else if (willBeLiked && !isLiked) {
+          batch.set(likeRef, { userId: currentUser.uid, likedAt: serverTimestamp() });
+          batch.update(reelRef, { likes: increment(1) });
+        }
+
+        await batch.commit();
+
+        if (willBeLiked && !isLiked && currentUser.uid !== reel.authorId) {
           const authorDoc = await getDoc(doc(firestore, 'users', reel.authorId));
           if (authorDoc.exists()) {
-              const authorProfile = authorDoc.data() as User;
-              if (authorProfile.notificationPreferences?.onReelLike !== false) {
-                  addDoc(collection(firestore, 'users', reel.authorId, 'notifications'), {
-                      type: 'reel_like',
-                      text: `${currentUser.displayName} menyukai video Reel Anda.`,
-                      link: `/reels?id=${reel.id}`,
-                      actor: {
-                          uid: currentUser.uid,
-                          displayName: currentUser.displayName!,
-                          photoURL: currentUser.photoURL!,
-                      },
-                      read: false,
-                      createdAt: serverTimestamp()
-                  }).catch(err => console.warn("Notification failed", err));
-              }
+            const authorProfile = authorDoc.data() as User;
+            if (authorProfile.notificationPreferences?.onReelLike !== false) {
+              addDoc(collection(firestore, 'users', reel.authorId, 'notifications'), {
+                type: 'reel_like',
+                text: `${currentUser.displayName} menyukai video Reel Anda.`,
+                link: `/reels?id=${reel.id}`,
+                actor: {
+                  uid: currentUser.uid,
+                  displayName: currentUser.displayName!,
+                  photoURL: currentUser.photoURL!,
+                },
+                read: false,
+                createdAt: serverTimestamp(),
+              }).catch((err) => console.warn('Notification failed', err));
+            }
           }
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLiking(false);
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLiking(false);
-    }
-  }, [firestore, currentUser, likeRef, isLiking, isLiked, reel.id, reel.authorId]);
+    },
+    [firestore, currentUser, likeRef, isLiking, isLiked, reel.id, reel.authorId]
+  );
 
   const handleScreenClick = (e: React.MouseEvent) => {
     const now = Date.now();
     const DOUBLE_CLICK_DELAY = 300;
-    
+
     if (now - lastClickTime.current < DOUBLE_CLICK_DELAY) {
-        handleToggleLike(true);
+      handleToggleLike(true);
     } else {
-        if (videoRef.current) {
-            if (isPaused) {
-                videoRef.current.play();
-                setIsPaused(false);
-                setShowPlayPauseAnim('play');
-            } else {
-                videoRef.current.pause();
-                setIsPaused(true);
-                setShowPlayPauseAnim('pause');
-            }
-            setTimeout(() => setShowPlayPauseAnim(null), 800);
+      if (videoRef.current) {
+        if (isPaused) {
+          videoRef.current.play();
+          setIsPaused(false);
+          setShowPlayPauseAnim('play');
+        } else {
+          videoRef.current.pause();
+          setIsPaused(true);
+          setShowPlayPauseAnim('pause');
         }
+        setTimeout(() => setShowPlayPauseAnim(null), 800);
+      }
     }
     lastClickTime.current = now;
   };
@@ -190,66 +213,198 @@ export function ReelItem({ reel, isMuted, onToggleMute, isPausedByModal = false 
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
       id={`reel-${reel.id}`}
-      className="h-full w-full snap-start snap-always relative bg-black flex flex-col items-center justify-center overflow-hidden shrink-0"
+      className="h-full w-full snap-start snap-always relative bg-black flex items-center justify-center overflow-hidden shrink-0"
     >
-      <video
-        ref={videoRef}
-        src={reel.videoUrl}
-        className="h-full w-full object-cover"
-        loop
-        playsInline
-        muted={isMuted}
-        onClick={handleScreenClick}
-        onTimeUpdate={handleTimeUpdate}
-      />
+      {/* Container video dengan aspek rasio dinamis */}
+      <div
+        className="relative max-h-full max-w-full"
+        style={{ aspectRatio }}
+      >
+        <video
+          ref={videoRef}
+          src={reel.videoUrl}
+          className="absolute inset-0 w-full h-full object-contain bg-black"
+          loop
+          playsInline
+          muted={isMuted}
+          onLoadedMetadata={handleLoadedMetadata}
+          onClick={handleScreenClick}
+          onTimeUpdate={handleTimeUpdate}
+        />
+      </div>
 
+      {/* Animasi play/pause */}
       <AnimatePresence>
         {showPlayPauseAnim && (
-            <motion.div 
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1.5, opacity: [0, 1, 0] }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
-            >
-                <div className="bg-black/20 backdrop-blur-md p-6 rounded-full border border-white/10">
-                    {showPlayPauseAnim === 'play' ? <Play className="w-12 h-12 text-white fill-white" /> : <Pause className="w-12 h-12 text-white fill-white" />}
-                </div>
-            </motion.div>
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1.5, opacity: [0, 1, 0] }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
+          >
+            <div className="bg-black/20 backdrop-blur-md p-6 rounded-full border border-white/10">
+              {showPlayPauseAnim === 'play' ? (
+                <Play className="w-12 h-12 text-white fill-white" />
+              ) : (
+                <Pause className="w-12 h-12 text-white fill-white" />
+              )}
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Animasi love (double tap) */}
       <AnimatePresence>
         {showHeartAnim && (
-            <motion.div 
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: [0, 1.2, 1], opacity: [0, 1, 0] }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.8 }}
-                className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none"
-            >
-                <Heart className="w-32 h-32 text-white fill-white drop-shadow-[0_0_20px_rgba(255,255,255,0.5)]" />
-            </motion.div>
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: [0, 1.2, 1], opacity: [0, 1, 0] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8 }}
+            className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none"
+          >
+            <Heart className="w-32 h-32 text-white fill-white drop-shadow-[0_0_20px_rgba(255,255,255,0.5)]" />
+          </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Gradien bawah */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80 pointer-events-none" />
 
-      {/* Narrative Info - Bottom Left */}
+      {/* Info naratif - kiri bawah */}
       <div className="absolute bottom-10 left-6 right-16 space-y-4 z-[105] pointer-events-none">
         <div className="flex items-center gap-3">
-            <Avatar className="h-11 w-11 border-2 border-white/30 shadow-xl pointer-events-auto active:scale-95 transition-transform">
-                <Link href={`/profile/${reel.authorUsername}`}>
-                    <AvatarImage src={reel.authorAvatarUrl} className="object-cover" />
-                    <AvatarFallback className="bg-primary text-white font-black">{reel.authorName.charAt(0)}</AvatarFallback>
-                </Link>
-            </Avatar>
-            <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                    <Link href={`/profile/${reel.authorUsername}`} className="font-black text-[15px] text-white drop-shadow-md hover:underline pointer-events-auto">{reel.authorName}</Link>
-                    <button className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-[8px] font-black uppercase px-3 py-1 rounded-full pointer-events-auto transition-all active:scale-90 flex items-center gap-1">
+          <Avatar className="h-11 w-11 border-2 border-white/30 shadow-xl pointer-events-auto active:scale-95 transition-transform">
+            <Link href={`/profile/${reel.authorUsername}`}>
+              <AvatarImage src={reel.authorAvatarUrl} className="object-cover" />
+              <AvatarFallback className="bg-primary text-white font-black">
+                {reel.authorName.charAt(0)}
+              </AvatarFallback>
+            </Link>
+          </Avatar>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/profile/${reel.authorUsername}`}
+                className="font-black text-[15px] text-white drop-shadow-md hover:underline pointer-events-auto"
+              >
+                {reel.authorName}
+              </Link>
+              <button className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-[8px] font-black uppercase px-3 py-1 rounded-full pointer-events-auto transition-all active:scale-90 flex items-center gap-1">
+                <UserPlus className="h-2 w-2" /> Ikuti
+              </button>
+            </div>
+            <p className="text-[9px] font-bold text-white/60 uppercase tracking-widest mt-0.5">
+              {formatDistanceToNow(reel.createdAt.toDate(), { locale: id, addSuffix: true })}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-sm font-medium text-white leading-relaxed line-clamp-2 italic drop-shadow-lg pr-4">
+          {reel.caption}
+        </p>
+
+        <div className="flex items-center gap-2 text-white/80 pointer-events-auto group">
+          <div className="p-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/10">
+            <Music2 className="h-3 w-3 animate-[spin_3s_linear_infinite]" />
+          </div>
+          <div className="overflow-hidden max-w-[180px]">
+            <p className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap animate-[marquee_10s_linear_infinite]">
+              Suara Asli - {reel.authorName} • Karya Elitera • {reel.authorName}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tombol interaksi - kanan bawah */}
+      <div className="absolute right-4 bottom-32 flex flex-col items-center gap-5 z-[105]">
+        <div className="flex flex-col items-center gap-1">
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={() => handleToggleLike()}
+            disabled={isLiking}
+            className={cn(
+              'h-12 w-12 rounded-full backdrop-blur-xl border flex items-center justify-center transition-all shadow-2xl',
+              isLiked
+                ? 'bg-rose-500 border-rose-400 text-white shadow-rose-500/40'
+                : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+            )}
+          >
+            {isLiking ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Heart className={cn('h-6 w-6 transition-transform', isLiked && 'fill-current scale-110')} />
+            )}
+          </motion.button>
+          <span className="text-[11px] font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+            {new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(reel.likes || 0)}
+          </span>
+        </div>
+
+        <div className="flex flex-col items-center gap-1">
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={() => setShowComments(true)}
+            className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white transition-all hover:bg-white/20 shadow-2xl"
+          >
+            <MessageSquare className="h-6 w-6" />
+          </motion.button>
+          <span className="text-[11px] font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+            {new Intl.NumberFormat('id-ID', { notation: 'compact' }).format(reel.commentCount || 0)}
+          </span>
+        </div>
+
+        <div className="flex flex-col items-center gap-4">
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={() => setShowShare(true)}
+            className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white transition-all hover:bg-primary/40 shadow-2xl"
+          >
+            <SendIcon className="h-5 w-5 ml-0.5" />
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={handleExternalShare}
+            className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white transition-all hover:bg-emerald-500/40 shadow-2xl"
+          >
+            <Share2 className="h-5 w-5" />
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 z-[110]">
+        <motion.div
+          className="h-full bg-primary shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      {/* Modal / sheet komentar & share */}
+      <ReelCommentsSheet
+        reelId={reel.id}
+        reelAuthorId={reel.authorId}
+        isOpen={showComments}
+        onOpenChange={setShowComments}
+      />
+      <ShareReelDialog reel={reel} open={showShare} onOpenChange={setShowShare} />
+
+      <style jsx>{`
+        @keyframes marquee {
+          0% {
+            transform: translateX(100%);
+          }
+          100% {
+            transform: translateX(-100%);
+          }
+        }
+      `}</style>
+    </div>
+  );
+         }ssName="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-[8px] font-black uppercase px-3 py-1 rounded-full pointer-events-auto transition-all active:scale-90 flex items-center gap-1">
                         <UserPlus className="h-2 w-2" /> Ikuti
                     </button>
                 </div>
